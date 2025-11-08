@@ -10,7 +10,7 @@ terraform {
 // managing the infrastructure in GCP, this will					
 // apply to all the resources in the project					
 provider "google" {					
-	project     = "deploy-model-ml"				
+	project     = "deploy-model-loan-prediction"				
 	region      = "asia-southeast1"			
 }					
 // Google Kubernetes Engine					
