@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 
-COPY jupyter-notebook-model/model_ml.joblib /app/
+COPY jupiter_notebook/model_ml.joblib /app/
 # Copy model_ml.joblib file vào COntainer
 
 # Expose port
