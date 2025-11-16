@@ -41,7 +41,7 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.8-slim'
-                    args '-v $PWD:/workspace -w /workspace'
+                    args "-v ${env.WORKSPACE}:/workspace -w /workspace"
                 }
             }
             steps {
