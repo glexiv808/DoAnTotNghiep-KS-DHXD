@@ -10,7 +10,7 @@ pipeline {
         // Repository hiện đang có trên DockerHub
         registry = 'nguyen808/loan-prediction-ml' //new
         // credential ID của Docker Hub đã được thêm vào Jenkinssss
-        registryCredential = 'jenkins-docker' //new
+        registryCredential = 'dockerhub-credential' //new
 
         APP_NAME = 'loan-prediction'
         NAMESPACE = 'model-serving'
