@@ -1,0 +1,96 @@
+{
+  "version": 4,
+  "terraform_version": "1.11.4",
+  "serial": 5,
+  "lineage": "4a91eb83-3193-5d9e-6a5c-f8bd7767d3fc",
+  "outputs": {},
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "google_compute_firewall",
+      "name": "firewall-mlops",
+      "provider": "provider[\"registry.terraform.io/hashicorp/google\"]",
+      "instances": [
+        {
+          "schema_version": 1,
+          "attributes": {
+            "allow": [
+              {
+                "ports": [
+                  "5000",
+                  "30080",
+                  "3000",
+                  "9090"
+                ],
+                "protocol": "tcp"
+              }
+            ],
+            "creation_timestamp": "2025-11-07T22:16:01.037-08:00",
+            "deny": [],
+            "description": "",
+            "destination_ranges": [],
+            "direction": "INGRESS",
+            "disabled": false,
+            "enable_logging": null,
+            "id": "projects/deploy-model-loan-prediction/global/firewalls/firewall-mlops-v2",
+            "log_config": [],
+            "name": "firewall-mlops-v2",
+            "network": "https://www.googleapis.com/compute/v1/projects/deploy-model-loan-prediction/global/networks/default",
+            "priority": 1000,
+            "project": "deploy-model-loan-prediction",
+            "self_link": "https://www.googleapis.com/compute/v1/projects/deploy-model-loan-prediction/global/firewalls/firewall-mlops-v2",
+            "source_ranges": [
+              "0.0.0.0/0"
+            ],
+            "source_service_accounts": null,
+            "source_tags": null,
+            "target_service_accounts": null,
+            "target_tags": null,
+            "timeouts": null
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjoxMjAwMDAwMDAwMDAwLCJkZWxldGUiOjEyMDAwMDAwMDAwMDAsInVwZGF0ZSI6MTIwMDAwMDAwMDAwMH0sInNjaGVtYV92ZXJzaW9uIjoiMSJ9"
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "google_storage_bucket",
+      "name": "my-bucket",
+      "provider": "provider[\"registry.terraform.io/hashicorp/google\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "autoclass": [],
+            "cors": [],
+            "custom_placement_config": [],
+            "default_event_based_hold": false,
+            "encryption": [],
+            "force_destroy": true,
+            "id": "bucket-store-v2",
+            "labels": {},
+            "lifecycle_rule": [],
+            "location": "ASIA-SOUTHEAST1",
+            "logging": [],
+            "name": "bucket-store-v2",
+            "project": "deploy-model-loan-prediction",
+            "public_access_prevention": "inherited",
+            "requester_pays": false,
+            "retention_policy": [],
+            "self_link": "https://www.googleapis.com/storage/v1/b/bucket-store-v2",
+            "storage_class": "STANDARD",
+            "timeouts": null,
+            "uniform_bucket_level_access": true,
+            "url": "gs://bucket-store-v2",
+            "versioning": [],
+            "website": []
+          },
+          "sensitive_attributes": [],
+          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsInJlYWQiOjI0MDAwMDAwMDAwMCwidXBkYXRlIjoyNDAwMDAwMDAwMDB9fQ=="
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
