@@ -10,7 +10,10 @@
 
 
  gcloud container node-pools resize TÊN_NODE_POOL --cluster TÊN_CỤM --num-nodes 0 or 3 --zone VÙNG_CỦA_CỤM 
- 
+
+gcloud container clusters resize gke-ml-ops-02 --node-pool node-mlops --num-nodes 0 --zone asia-southeast1-a
+
+
  gcloud container node-pools describe node-mlops  --cluster gke-ml-ops-02 --zone asia-southeast1-a
 
  ngrok http 8080: Tạo thành 1 "đường hầm" với Jenkins ở máy local, thay vì truy cập vào localhost:8080, chúng ta có thể truy cập Jenkins thông qua địa chỉ web được hiện ra khi nhập lệnh này.
