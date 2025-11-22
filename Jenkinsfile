@@ -172,7 +172,7 @@ spec:
                     sh '$HOME/k8s-tools/kubectl version --client'
 
                     // Áp dụng lên cluster
-                    withKubeConfig([credentialsId: 'GCP-access', serverUrl: 'https://34.158.41.86']) { //new
+                    withKubeConfig([credentialsId: 'GCP-access', serverUrl: 'https://34.177.99.158']) { //new
                         // Tạo namespace
                         echo 'Check if this namespace is already exits or not...'
                         sh '''

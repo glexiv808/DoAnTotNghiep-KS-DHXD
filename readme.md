@@ -18,7 +18,7 @@ gcloud container clusters resize gke-ml-ops-02 --node-pool node-mlops --num-node
 
  ngrok http 8080: Tạo thành 1 "đường hầm" với Jenkins ở máy local, thay vì truy cập vào localhost:8080, chúng ta có thể truy cập Jenkins thông qua địa chỉ web được hiện ra khi nhập lệnh này.
 
-gcloud container clusters describe <Tên Cluster> --zone=<Tên vùng> --format="value(endpoint)": get kube URL
+gcloud container clusters describe gke-ml-ops-02 --zone asia-southeast1-a --format="value(endpoint)": get kube URL
 gcloud container clusters describe <Tên Cluster> --zone=<Tên vùng> --format="value(masterAuth.clusterCaCertificate)": get kube server certificate
 
 // Get Access Token đại diện cho Service Account trong GCP
