@@ -10,7 +10,7 @@ pipeline {
         // Repository hiện đang có trên DockerHub
         registry = 'nguyen808/loan-prediction-ml' //new
         // credential ID của Docker Hub đã được thêm vào Jenkinssss
-        registryCredential = 'dockerhub-credential' //new
+        registryCredential = 'jenkins-dockerhub' //new
 
         APP_NAME = 'loan-prediction'
         NAMESPACE = 'model-serving'
@@ -106,68 +106,68 @@ pipeline {
 
                     // Tạo file deployment.yaml
                     writeFile file: 'deployment.yaml', text: """
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ${APP_NAME}-deployment
-  namespace: ${NAMESPACE}
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: ${APP_NAME}
-  template:
-    metadata:
-      labels:
-        app: ${APP_NAME}
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "5000"
-        prometheus.io/path: "/metrics"
-    spec:
-      containers:
-      - name: ${APP_NAME}-container
-        image: ${registry}:latest
-        ports:
-        - containerPort: 5000
+                        apiVersion: apps/v1
+                        kind: Deployment
+                        metadata:
+                        name: ${APP_NAME}-deployment
+                        namespace: ${NAMESPACE}
+                        spec:
+                        replicas: 3
+                        selector:
+                            matchLabels:
+                            app: ${APP_NAME}
+                        template:
+                            metadata:
+                            labels:
+                                app: ${APP_NAME}
+                            annotations:
+                                prometheus.io/scrape: "true"
+                                prometheus.io/port: "5000"
+                                prometheus.io/path: "/metrics"
+                            spec:
+                            containers:
+                            - name: ${APP_NAME}-container
+                                image: ${registry}:latest
+                                ports:
+                                - containerPort: 5000
 
-"""
+                        """
 
-                    // Tạo file service.yaml cho deployment
-                    writeFile file: 'service.yaml', text: """
-apiVersion: v1
-kind: Service
-metadata:
-  name: ${APP_NAME}-service
-  namespace: ${NAMESPACE}
-  labels:
-    app: service-monitor
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "5000"
-    prometheus.io/path: "/metrics"
-spec:
-  selector:
-    app: ${APP_NAME}
-  ports:
-    - name: http
-      protocol: TCP
-      port: 80
-      targetPort: 5000
+                            // Tạo file service.yaml cho deployment
+                            writeFile file: 'service.yaml', text: """
+                        apiVersion: v1
+                        kind: Service
+                        metadata:
+                        name: ${APP_NAME}-service
+                        namespace: ${NAMESPACE}
+                        labels:
+                            app: service-monitor
+                        annotations:
+                            prometheus.io/scrape: "true"
+                            prometheus.io/port: "5000"
+                            prometheus.io/path: "/metrics"
+                        spec:
+                        selector:
+                            app: ${APP_NAME}
+                        ports:
+                            - name: http
+                            protocol: TCP
+                            port: 80
+                            targetPort: 5000
 
-  type: ClusterIP
-"""
+                        type: ClusterIP
+                        """
 
                     // Cài đặt kubectl
                     sh '''
-                KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
-                curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-                ### Cài đặt vào thư mục home
-                chmod +x kubectl
-                mv kubectl $HOME/k8s-tools/
-                ### Thêm vào PATH cho phiên làm việc hiện tại
-                export PATH="$HOME/k8s-tools:$PATH"
-            '''
+                        KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+                        curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+                        ### Cài đặt vào thư mục home
+                        chmod +x kubectl
+                        mv kubectl $HOME/k8s-tools/
+                        ### Thêm vào PATH cho phiên làm việc hiện tại
+                        export PATH="$HOME/k8s-tools:$PATH"
+                    '''
                     // Kiểm tra kubectl đã cài đặt
                     sh '$HOME/k8s-tools/kubectl version --client'
 
@@ -176,10 +176,10 @@ spec:
                         // Tạo namespace
                         echo 'Check if this namespace is already exits or not...'
                         sh '''
-                    ### Kiểm tra namespace có tồn tại không, nếu không thì tạo mới
-                    $HOME/k8s-tools/kubectl get namespace ${NAMESPACE} 2>/dev/null || $HOME/k8s-tools/kubectl create namespace ${NAMESPACE}
-                    echo "Namespace ${NAMESPACE} is ready!"
-                '''
+                            ### Kiểm tra namespace có tồn tại không, nếu không thì tạo mới
+                            $HOME/k8s-tools/kubectl get namespace ${NAMESPACE} 2>/dev/null || $HOME/k8s-tools/kubectl create namespace ${NAMESPACE}
+                            echo "Namespace ${NAMESPACE} is ready!"
+                        '''
                         sh '$HOME/k8s-tools/kubectl apply -f deployment.yaml'
                         sh '$HOME/k8s-tools/kubectl apply -f service.yaml'
 
