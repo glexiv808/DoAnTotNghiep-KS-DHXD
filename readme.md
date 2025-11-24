@@ -1,4 +1,4 @@
- gcloud container clusters get-credentials gke-ml-ops-02 --zone asia-southeast1-a --project deploy-model-loan-prediction 
+ gcloud container clusters get-credentials gke-ml-ops-02 --zone asia-southeast1-a --project loan-prediction-ubuntu 
  kubectl create namespace monitoring;  kubectl apply -f jaeger-deployment.yaml 
 
  tắt Jaeger: kubectl scale deployment jaeger --replicas=0 -n monitoring 
