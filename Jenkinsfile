@@ -176,27 +176,17 @@ spec:
             withKubeConfig([credentialsId: 'GCP-access2', serverUrl: 'https://34.177.99.158']) {
                 // Tạo namespace
                 echo "Check if this namespace is already exits or not..."
-                // sh '''
-                //     ### Kiểm tra namespace có tồn tại không, nếu không thì tạo mới
-                //     $HOME/k8s-tools/kubectl get namespace ${NAMESPACE} 2>/dev/null || $HOME/k8s-tools/kubectl create namespace ${NAMESPACE}
-                //     echo "Namespace ${NAMESPACE} is ready!"
-                // '''
-                // sh '$HOME/k8s-tools/kubectl apply -f deployment.yaml'
-                // sh '$HOME/k8s-tools/kubectl apply -f service.yaml'
-                
-                // // Kiểm tra (thêm namespace flag để chính xác)
-                // sh '$HOME/k8s-tools/kubectl get pods -n ${NAMESPACE}'
-                // sh '$HOME/k8s-tools/kubectl get svc -n ${NAMESPACE}'
-                 sh '''
-                    kubectl get namespace ${NAMESPACE} 2>/dev/null || kubectl create namespace ${NAMESPACE}
+                sh '''
+                    ### Kiểm tra namespace có tồn tại không, nếu không thì tạo mới
+                    $HOME/k8s-tools/kubectl get namespace ${NAMESPACE} 2>/dev/null || $HOME/k8s-tools/kubectl create namespace ${NAMESPACE}
                     echo "Namespace ${NAMESPACE} is ready!"
                 '''
-
-                sh 'kubectl apply -f deployment.yaml'
-                sh 'kubectl apply -f service.yaml'
-
-                sh 'kubectl get pods -n ${NAMESPACE}'
-                sh 'kubectl get svc -n ${NAMESPACE}'
+                sh '$HOME/k8s-tools/kubectl apply -f deployment.yaml'
+                sh '$HOME/k8s-tools/kubectl apply -f service.yaml'
+                
+                // Kiểm tra (thêm namespace flag để chính xác)
+                sh '$HOME/k8s-tools/kubectl get pods -n ${NAMESPACE}'
+                sh '$HOME/k8s-tools/kubectl get svc -n ${NAMESPACE}'
                     }
                 }
             }
