@@ -25,3 +25,8 @@ gcloud container clusters describe <Tên Cluster> --zone=<Tên vùng> --format="
 gcloud auth activate-service-account jenkin-serviceaccount@deploy-model-loan-prediction.iam.gserviceaccount.com --key-file=C:\Users\nguye\Downloads\deploy-model-loan-prediction-831068f9d106.json
 gcloud auth print-access-token
 // end
+
+//apply ingress
+kubectl apply -f ingress.yaml
+//delete
+kubectl delete ingress nguyen-ingress -n model-serving
