@@ -2,12 +2,20 @@ import time
 import logging
 import joblib
 import numpy as np
-from typing import List
+from typing import List, Optional
 from functools import wraps
-from fastapi import FastAPI, HTTPException
+from datetime import datetime, timedelta
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.responses import Response
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel, EmailStr
+from passlib.context import CryptContext
+import jwt
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
 
-# Import OpenTelemetryy
+# Import OpenTelemetry
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -15,57 +23,154 @@ from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.trace import get_tracer_provider, set_tracer_provider
 
-# Import OpenTelemetry Metrics
-from opentelemetry import metrics
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
-from opentelemetry.metrics import get_meter_provider, set_meter_provider
-
 # Import Prometheus client
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST, REGISTRY
-# Bổ sung 
 from contextlib import asynccontextmanager 
 
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Resource chung cho cả tracing và metrics
+# ==================== CẤU HÌNH ====================
+SECRET_KEY = "your-secret-key-change-in-production"  # Thay đổi trong production
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Database URL - có thể thay đổi sang PostgreSQL
+DATABASE_URL = "sqlite:///./ml_service.db"  # Hoặc: "postgresql://user:pass@localhost/dbname"
+
+# ==================== DATABASE SETUP ====================
+Base = declarative_base()
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# User Model
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
+
+# Tạo bảng
+Base.metadata.create_all(bind=engine)
+
+# ==================== PYDANTIC MODELS ====================
+class UserCreate(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+    full_name: Optional[str] = None
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    full_name: Optional[str]
+    is_active: bool
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# ==================== SECURITY ====================
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security = HTTPBearer()
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.JWTError:
+        raise credentials_exception
+    
+    user = db.query(User).filter(User.username == username).first()
+    if user is None:
+        raise credentials_exception
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return user
+
+# ==================== OPENTELEMETRY SETUP ====================
 resource = Resource.create({SERVICE_NAME: "ml-prediction-service"})
 
-# 1. Thiết lập Tracing với Jaeger
-set_tracer_provider(
-    TracerProvider(resource=resource)
-)
+set_tracer_provider(TracerProvider(resource=resource))
 
-# Tạo Jaeger Exporter
 jaeger_exporter = JaegerExporter(
-    #agent_host_name="jaeger",
-    agent_host_name="jaeger.monitoring.svc.cluster.local",  # Sử dụng DNS của Jaeger trong Cluster --> trỏ đến service Jaeger nằm ở namespace "monitoring"
+    agent_host_name="jaeger.monitoring.svc.cluster.local",
     agent_port=6831,
 )
 
-# Thêm processor để gửi span đến Jaeger
 trace.get_tracer_provider().add_span_processor(
     BatchSpanProcessor(jaeger_exporter)
 )
 
-# Lấy tracer
 tracer = get_tracer_provider().get_tracer("ml-prediction", "0.1.2")
 
-
-# 2. Tạo Prometheus metrics trực tiếp bằng prometheus_client
+# ==================== METRICS ====================
 model_request_counter = Counter(
     'model_request_total',
     'Total number of requests sent to model',
-    ['endpoint']
+    ['endpoint', 'user']
 )
 
 prediction_duration_histogram = Histogram(
     'ml_prediction_duration_seconds',
     'Time spent on predictions',
-    ['endpoint', 'status']
+    ['endpoint', 'status', 'user']
 )
 
 error_counter = Counter(
@@ -74,32 +179,38 @@ error_counter = Counter(
     ['operation', 'error_type']
 )
 
-### Bổ sung Lifespan context
+auth_counter = Counter(
+    'auth_requests_total',
+    'Total authentication requests',
+    ['operation', 'status']
+)
+
+# ==================== LIFESPAN ====================
 cached_model = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    logger.info("Service start...")
+    logger.info("Service starting...")
     global cached_model
     try:
         cached_model = load_model()
-        logger.info("Model load succesfully")
+        logger.info("Model loaded successfully")
     except Exception as e:
         logger.error(f"Failed to load model during startup: {e}")
     
     yield
     
-    # Shutdown n cleanup
     logger.info("Shutting down ML Prediction Service...")
     cached_model = None
-    
-# Tạo FastAPI app
-app = FastAPI(title="ML Prediction Service", 
-              version="0.1.0",
-              lifespan=lifespan)
 
-# 2. Tạo decorator trace-span để tự động trace cho các function
+# ==================== FASTAPI APP ====================
+app = FastAPI(
+    title="ML Prediction Service with Auth",
+    version="0.2.0",
+    lifespan=lifespan
+)
+
+# ==================== TRACING DECORATOR ====================
 def trace_span(span_name):
     def decorator(func):
         @wraps(func)
@@ -115,7 +226,7 @@ def trace_span(span_name):
         return wrapper
     return decorator
 
-# 3. Load model với tracing
+# ==================== MODEL FUNCTIONS ====================
 @trace_span("model-loader")
 def load_model():
     try:
@@ -123,128 +234,215 @@ def load_model():
         return model
     except Exception as e:
         logger.error(f"Error loading model: {e}")
-        
-        # Thiết lập metrics error_counter khi load model
-        
         error_counter.labels(operation="model_load", error_type=type(e).__name__).inc()
-        
         raise HTTPException(status_code=500, detail=f"Failed to load model: {str(e)}")
 
-# 4. Tracing cho hàm dự đoán predictor
 @trace_span("predictor")
-def make_prediction(model, features):
+def make_prediction(model, features, username: str):
     start_time = time.time()
     
     try:
-        logger.info(f"Making prediction with features: {features}")
+        logger.info(f"Making prediction for user {username} with features: {features}")
         
-        # Kiểm tra input
         if not features:
             raise ValueError("Features cannot be empty")
         
-        # Chuyển đổi features thành numpy array
         features_array = np.array([features])
-        
-        # Thực hiện dự đoán
         prediction = model.predict(features_array)
         
         logger.info(f"Prediction result: {prediction}")
-        
-        # Chuyển đổi kết quả thành list
         result = prediction.tolist()
         
-        # Thiết lập metric cho prediction_duration_histogram
-        
         duration = time.time() - start_time
-        prediction_duration_histogram.labels(endpoint="internal", status="success").observe(duration)
+        prediction_duration_histogram.labels(
+            endpoint="internal", 
+            status="success", 
+            user=username
+        ).observe(duration)
         
         return result
         
     except Exception as e:
         logger.error(f"Error making prediction: {e}")
         
-        # Thiết lập metric cho error_counter
-        
         duration = time.time() - start_time
-        prediction_duration_histogram.labels(endpoint="internal", status="error").observe(duration)
+        prediction_duration_histogram.labels(
+            endpoint="internal", 
+            status="error", 
+            user=username
+        ).observe(duration)
         error_counter.labels(operation="prediction", error_type=type(e).__name__).inc()
         
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
-# 5. API endpoint với tracing và metrics
+# ==================== AUTH ENDPOINTS ====================
+@app.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def register(user: UserCreate, db: Session = Depends(get_db)):
+    """Đăng ký user mới"""
+    auth_counter.labels(operation="register", status="attempt").inc()
+    
+    # Kiểm tra username đã tồn tại
+    db_user = db.query(User).filter(User.username == user.username).first()
+    if db_user:
+        auth_counter.labels(operation="register", status="failed").inc()
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    # Kiểm tra email đã tồn tại
+    db_user = db.query(User).filter(User.email == user.email).first()
+    if db_user:
+        auth_counter.labels(operation="register", status="failed").inc()
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Tạo user mới
+    hashed_password = get_password_hash(user.password)
+    db_user = User(
+        username=user.username,
+        email=user.email,
+        hashed_password=hashed_password,
+        full_name=user.full_name
+    )
+    
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    
+    auth_counter.labels(operation="register", status="success").inc()
+    logger.info(f"New user registered: {user.username}")
+    
+    return db_user
+
+@app.post("/login", response_model=Token)
+def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
+    """Đăng nhập và nhận token"""
+    auth_counter.labels(operation="login", status="attempt").inc()
+    
+    user = db.query(User).filter(User.username == user_credentials.username).first()
+    
+    if not user or not verify_password(user_credentials.password, user.hashed_password):
+        auth_counter.labels(operation="login", status="failed").inc()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Cập nhật last_login
+    user.last_login = datetime.utcnow()
+    db.commit()
+    
+    # Tạo access token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    
+    auth_counter.labels(operation="login", status="success").inc()
+    logger.info(f"User logged in: {user.username}")
+    
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/users/me", response_model=UserResponse)
+def read_users_me(current_user: User = Depends(get_current_user)):
+    """Lấy thông tin user hiện tại"""
+    return current_user
+
+# ==================== PREDICTION ENDPOINT ====================
 @app.post("/predict")
-def predict(features: List[float]):
+def predict(
+    features: List[float],
+    current_user: User = Depends(get_current_user)
+):
+    """Thực hiện dự đoán (yêu cầu authentication)"""
     endpoint_start_time = time.time()
     
-    # Đếm số lượng request được gửi đến model
-    model_request_counter.labels(endpoint="/predict").inc()
+    model_request_counter.labels(endpoint="/predict", user=current_user.username).inc()
     
     try:
         with tracer.start_as_current_span("prediction-endpoint") as span:
-            logger.info(f"Received prediction request with features: {features}")
+            logger.info(f"User {current_user.username} requested prediction with features: {features}")
             
-            # Thêm thông tin vào span
+            span.set_attribute("user.username", current_user.username)
             span.set_attribute("input.features", str(features))
             span.set_attribute("input.length", len(features))
             
-            # Load model
             model = load_model()
+            prediction = make_prediction(model, features, current_user.username)
             
-            # Thực hiện dự đoán
-            prediction = make_prediction(model, features)
-            
-            # Thêm thông tin prediction vào span
             span.set_attribute("prediction.result", str(prediction))
             span.set_attribute("prediction.success", True)
             
-            # Record endpoint metrics
             endpoint_duration = time.time() - endpoint_start_time
-            prediction_duration_histogram.labels(endpoint="/predict", status="success").observe(endpoint_duration)
+            prediction_duration_histogram.labels(
+                endpoint="/predict", 
+                status="success", 
+                user=current_user.username
+            ).observe(endpoint_duration)
             
-            logger.info(f"Returning prediction: {prediction}")
-            return {"prediction": prediction, "status": "success"}
+            logger.info(f"Returning prediction to {current_user.username}: {prediction}")
+            return {
+                "prediction": prediction,
+                "status": "success",
+                "user": current_user.username
+            }
             
     except HTTPException as he:
-        # Record HTTP error metrics
         endpoint_duration = time.time() - endpoint_start_time
-        prediction_duration_histogram.labels(endpoint="/predict", status="http_error").observe(endpoint_duration)
+        prediction_duration_histogram.labels(
+            endpoint="/predict", 
+            status="http_error", 
+            user=current_user.username
+        ).observe(endpoint_duration)
         error_counter.labels(operation="endpoint", error_type="HTTPException").inc()
         raise he
     except Exception as e:
         logger.error(f"Unexpected error in prediction endpoint: {e}")
         
-        # Record unexpected error metrics
         endpoint_duration = time.time() - endpoint_start_time
-        prediction_duration_histogram.labels(endpoint="/predict", status="error").observe(endpoint_duration)
+        prediction_duration_histogram.labels(
+            endpoint="/predict", 
+            status="error", 
+            user=current_user.username
+        ).observe(endpoint_duration)
         error_counter.labels(operation="endpoint", error_type=type(e).__name__).inc()
         
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-### Endpoint để expose Prometheus metrics ###
+# ==================== METRICS & HEALTH ====================
 @app.get("/metrics")
 def get_metrics():
     """Endpoint để Prometheus scrape metrics"""
     return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
-# Health check endpoints
 @app.get("/")
 def root():
-    return {"message": "ML Prediction Service is running"}
+    return {
+        "message": "ML Prediction Service with Authentication",
+        "version": "0.2.0",
+        "endpoints": {
+            "register": "/register",
+            "login": "/login",
+            "predict": "/predict (requires auth)",
+            "user_info": "/users/me (requires auth)",
+            "health": "/health",
+            "metrics": "/metrics"
+        }
+    }
 
 @app.get("/health")
 def health():
     try:
-        # Kiểm tra xem có thể load model được không
+        model_loaded = False
         try:
             load_model()
             model_loaded = True
         except:
-            model_loaded = False
+            pass
         
         return {
             "status": "healthy",
             "model_loaded": model_loaded,
-            "service": "ml-prediction-service",
+            "service": "ml-prediction-service-with-auth",
+            "database": "connected",
             "metrics_endpoint": "/metrics"
         }
     except Exception as e:
@@ -255,5 +453,5 @@ def health():
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting ML Prediction Service...")
+    logger.info("Starting ML Prediction Service with Authentication...")
     uvicorn.run(app, host="0.0.0.0", port=5000)

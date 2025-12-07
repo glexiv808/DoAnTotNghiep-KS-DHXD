@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 
-COPY app.py .
+COPY ML-app.py .
 
 COPY jupiter_notebook/model_ml.joblib /app/
 # Copy model_ml.joblib file vào COntainer

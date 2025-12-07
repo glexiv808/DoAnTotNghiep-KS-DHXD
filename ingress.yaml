@@ -29,7 +29,7 @@ metadata:
     kubernetes.io/ingress.class: nginx
     # Bật tính năng CORS
     nginx.ingress.kubernetes.io/enable-cors: "true"
-    # Cho phép tất cả các nguồn (bao gồm localhost của bạn)
+    # Cho phép tất cả các nguồn (bao gồm localhost)
     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
     # Cho phép các method cần thiết
     nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
