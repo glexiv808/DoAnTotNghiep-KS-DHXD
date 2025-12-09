@@ -15,15 +15,96 @@
 
 <body class="bg-slate-100 min-h-screen font-sans text-slate-800">
 
-    <header class="bg-indigo-900 text-white shadow-lg sticky top-0 z-50">
+    <!-- ==================== LOGIN MODAL ==================== -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <!-- Tab Navigation -->
+            <div class="flex border-b">
+                <button id="tabLogin" class="flex-1 py-4 px-6 font-bold text-indigo-900 border-b-2 border-indigo-600 bg-indigo-50 cursor-pointer transition">
+                    Đăng nhập
+                </button>
+                <button id="tabRegister" class="flex-1 py-4 px-6 font-bold text-gray-600 border-b-2 border-transparent hover:text-indigo-600 bg-white cursor-pointer transition">
+                    Đăng ký
+                </button>
+            </div>
+
+            <!-- Login Form -->
+            <div id="loginForm" class="p-8 space-y-4">
+                <h3 class="text-2xl font-bold text-indigo-900 mb-6">Đăng nhập hệ thống</h3>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Tên đăng nhập</label>
+                    <input type="text" id="loginUsername" placeholder="Nhập tên đăng nhập"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Mật khẩu</label>
+                    <input type="password" id="loginPassword" placeholder="Nhập mật khẩu"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition">
+                </div>
+
+                <div id="loginError" class="hidden p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm"></div>
+
+                <button id="btnLogin" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition flex justify-center items-center gap-2">
+                    <span>ĐĂNG NHẬP</span>
+                    <div id="spinnerLogin" class="loader ease-linear rounded-full border-2 border-t-2 border-white h-5 w-5 hidden"></div>
+                </button>
+            </div>
+
+            <!-- Register Form -->
+            <div id="registerForm" class="hidden p-8 space-y-4">
+                <h3 class="text-2xl font-bold text-indigo-900 mb-6">Tạo tài khoản mới</h3>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Tên đăng nhập</label>
+                    <input type="text" id="regUsername" placeholder="Chọn tên đăng nhập"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="regEmail" placeholder="Nhập email"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Mật khẩu</label>
+                    <input type="password" id="regPassword" placeholder="Tối thiểu 6 ký tự"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Họ tên (tùy chọn)</label>
+                    <input type="text" id="regFullName" placeholder="Nhập họ tên"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition">
+                </div>
+
+                <div id="registerError" class="hidden p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm"></div>
+
+                <button id="btnRegister" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition flex justify-center items-center gap-2">
+                    <span>ĐĂNG KÝ</span>
+                    <div id="spinnerRegister" class="loader ease-linear rounded-full border-2 border-t-2 border-white h-5 w-5 hidden"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <header class="bg-indigo-900 text-white shadow-lg sticky top-0 z-40">
         <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-bold tracking-wide">CREDIT SCORING AI</h1>
                 <p class="text-indigo-300 text-xs">Hỗ trợ Excel (.xlsx) và CSV (.csv)</p>
             </div>
-            <div class="text-right hidden sm:block">
-                <p class="text-xs text-indigo-200">API Status: Ready</p>
-                <code class="bg-indigo-800 px-2 py-1 rounded text-xs font-mono">POST /api/v1/predict</code>
+            <div class="text-right flex items-center gap-4">
+                <div id="userInfo" class="hidden sm:block text-right">
+                    <p class="text-xs text-indigo-200">Xin chào, <span id="currentUser" class="font-bold text-white"></span></p>
+                    <button id="btnLogout" class="text-xs text-indigo-300 hover:text-white transition underline">Đăng xuất</button>
+                </div>
+                <div id="authStatus" class="text-right hidden sm:block">
+                    <p class="text-xs text-indigo-200">API Status: Ready</p>
+                    <code class="bg-indigo-800 px-2 py-1 rounded text-xs font-mono">POST /api/v1/predict</code>
+                </div>
             </div>
         </div>
     </header>
@@ -159,11 +240,6 @@
                             </select>
                         </div>
 
-                        <!-- <button type="submit" id="btnSingle" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow transition flex justify-center items-center mt-4">
-                            <span>DỰ ĐOÁN NGAY</span>
-                            <div id="spinnerSingle" class="loader ease-linear rounded-full border-2 border-t-2 border-white h-5 w-5 ml-2 hidden"></div>
-                        </button> -->
-
                         <button type="submit" id="btnSingle"
                             class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow transition flex justify-center items-center mt-4"
                             disabled>
@@ -219,13 +295,23 @@
                         <div id="fileInfo" class="text-sm text-slate-500 italic flex items-center">
                             <span class="w-2 h-2 rounded-full bg-slate-300 mr-2"></span> Chưa chọn file
                         </div>
-                        <button onclick="processBatch()" id="btnBatch" disabled
-                            class="bg-slate-300 text-white px-6 py-2 rounded-lg font-bold shadow transition flex items-center cursor-not-allowed">
-                            <span>XỬ LÝ NGAY</span>
-                            <div id="spinnerBatch"
-                                class="loader ease-linear rounded-full border-2 border-t-2 border-white h-4 w-4 ml-2 hidden">
-                            </div>
-                        </button>
+                        <div class="flex gap-2">
+                            <button onclick="processBatch()" id="btnBatch" disabled
+                                class="bg-slate-300 text-white px-6 py-2 rounded-lg font-bold shadow transition flex items-center cursor-not-allowed">
+                                <span>XỬ LÝ NGAY</span>
+                                <div id="spinnerBatch"
+                                    class="loader ease-linear rounded-full border-2 border-t-2 border-white h-4 w-4 ml-2 hidden">
+                                </div>
+                            </button>
+                            <button onclick="saveResults()" id="btnSave" disabled
+                                class="bg-slate-300 text-white px-6 py-2 rounded-lg font-bold shadow transition flex items-center cursor-not-allowed">
+                                <span>💾 LƯU</span>
+                            </button>
+                            <button onclick="loadResults()" id="btnLoad"
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow transition flex items-center">
+                                <span>📂 TẢI</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="mt-6 flex-1 overflow-hidden flex flex-col border rounded-lg">
@@ -237,17 +323,29 @@
                                             class="px-5 py-3 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
                                             STT</th>
                                         <th
-                                            class="px-5 py-3 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
-                                            Họ tên</th>
+                                            class="px-5 py-3 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none"
+                                            data-sort="name">
+                                            Họ tên ↕
+                                        </th>
                                         <th
-                                            class="px-5 py-3 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
-                                            Thu nhập</th>
+                                            class="px-5 py-3 border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none"
+                                            data-sort="income">
+                                            Thu nhập ↕
+                                        </th>
+                                        <th
+                                            class="px-5 py-3 border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none"
+                                            data-sort="score">
+                                            Score ↕
+                                        </th>
+                                        <th
+                                            class="px-5 py-3 border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-100 transition select-none"
+                                            data-sort="result">
+                                            Kết quả ↕
+                                        </th>
                                         <th
                                             class="px-5 py-3 border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold text-gray-500 uppercase">
-                                            Score</th>
-                                        <th
-                                            class="px-5 py-3 border-b border-gray-200 bg-gray-50 text-center text-xs font-semibold text-gray-500 uppercase">
-                                            Kết quả</th>
+                                            Trạng thái liên lạc
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody id="resultTableBody" class="bg-white">

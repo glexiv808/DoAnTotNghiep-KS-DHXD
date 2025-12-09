@@ -15,6 +15,8 @@ from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
+from fastapi.middleware.cors import CORSMiddleware
+
 # Import OpenTelemetry
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -32,7 +34,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ==================== CẤU HÌNH ====================
-SECRET_KEY = "your-secret-key-change-in-production"  # Thay đổi trong production
+SECRET_KEY = "matkhausieudaihahahahahahahahahahahahahahahahahahahahahahaha"  # Thay đổi trong production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -56,6 +58,44 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
+
+# Token Blacklist Model
+class TokenBlacklist(Base):
+    __tablename__ = "token_blacklist"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, index=True, nullable=False)
+    blacklisted_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+
+# Processing Session Model - để lưu các bản ghi đã xử lý
+class ProcessingSession(Base):
+    __tablename__ = "processing_sessions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, index=True, nullable=False)
+    session_id = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    row_count = Column(Integer, default=0)
+    data = Column(String, nullable=False)  # JSON string chứa dữ liệu
+
+# Processing Result Model - để lưu từng bản ghi
+class ProcessingResult(Base):
+    __tablename__ = "processing_results"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True, nullable=False)
+    username = Column(String, index=True, nullable=False)
+    row_number = Column(Integer, nullable=False)
+    name = Column(String, nullable=False)
+    income = Column(String, nullable=True)
+    score = Column(String, nullable=True)
+    result = Column(String, nullable=True)
+    contact_status = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 # Tạo bảng
 Base.metadata.create_all(bind=engine)
@@ -113,6 +153,21 @@ def get_db():
     finally:
         db.close()
 
+def is_token_blacklisted(token: str, db: Session) -> bool:
+    """Kiểm tra token có trong blacklist không"""
+    blacklisted = db.query(TokenBlacklist).filter(TokenBlacklist.token == token).first()
+    return blacklisted is not None
+
+def blacklist_token(token: str, username: str, exp_time: datetime, db: Session):
+    """Thêm token vào blacklist khi logout"""
+    blacklist_entry = TokenBlacklist(
+        token=token,
+        username=username,
+        expires_at=exp_time
+    )
+    db.add(blacklist_entry)
+    db.commit()
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
@@ -124,6 +179,15 @@ def get_current_user(
     )
     try:
         token = credentials.credentials
+        
+        # Kiểm tra token có trong blacklist không
+        if is_token_blacklisted(token, db):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
@@ -210,6 +274,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Hoặc chỉ định cụ thể: ["http://127.0.0.1:5500"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # ==================== TRACING DECORATOR ====================
 def trace_span(span_name):
     def decorator(func):
@@ -230,7 +302,7 @@ def trace_span(span_name):
 @trace_span("model-loader")
 def load_model():
     try:
-        model = joblib.load("model_ml.joblib")
+        model = joblib.load("jupiter_notebook/model_ml.joblib")
         return model
     except Exception as e:
         logger.error(f"Error loading model: {e}")
@@ -341,6 +413,55 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     
     return {"access_token": access_token, "token_type": "bearer"}
 
+@app.post("/logout")
+def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    """Đăng xuất và vô hiệu hóa token"""
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        exp_time = datetime.utcfromtimestamp(payload.get("exp"))
+        
+        if username is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token"
+            )
+        
+        # Kiểm tra token đã trong blacklist chưa
+        if is_token_blacklisted(token, db):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Token already revoked"
+            )
+        
+        # Thêm token vào blacklist
+        blacklist_token(token, username, exp_time, db)
+        
+        auth_counter.labels(operation="logout", status="success").inc()
+        logger.info(f"User logged out: {username}")
+        
+        return {
+            "status": "success",
+            "message": "Logged out successfully",
+            "username": username
+        }
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired"
+        )
+    except jwt.JWTError:
+        auth_counter.labels(operation="logout", status="failed").inc()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials"
+        )
+
 @app.get("/users/me", response_model=UserResponse)
 def read_users_me(current_user: User = Depends(get_current_user)):
     """Lấy thông tin user hiện tại"""
@@ -421,6 +542,7 @@ def root():
         "endpoints": {
             "register": "/register",
             "login": "/login",
+            "logout": "/logout (requires auth)",
             "predict": "/predict (requires auth)",
             "user_info": "/users/me (requires auth)",
             "health": "/health",
