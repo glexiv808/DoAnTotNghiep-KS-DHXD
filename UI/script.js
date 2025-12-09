@@ -612,6 +612,11 @@ async function processBatch() {
     btnBatch.disabled = false;
     spinner.classList.add('hidden');
     
+    // Enable Save button after batch processing
+    document.getElementById('btnSave').disabled = false;
+    document.getElementById('btnSave').classList.remove('bg-slate-300', 'cursor-not-allowed');
+    document.getElementById('btnSave').classList.add('bg-emerald-600', 'hover:bg-emerald-700');
+    
     // Setup sorting functionality
     setupTableSorting();
 }
