@@ -302,7 +302,7 @@ def trace_span(span_name):
 @trace_span("model-loader")
 def load_model():
     try:
-        model = joblib.load("jupiter_notebook/model_ml.joblib")
+        model = joblib.load("model_ml.joblib")
         return model
     except Exception as e:
         logger.error(f"Error loading model: {e}")
