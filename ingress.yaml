@@ -31,7 +31,8 @@ metadata:
     nginx.ingress.kubernetes.io/enable-cors: "true"
 
     # Chỉ định domain cho phép (KHÔNG ĐƯỢC để *)
-    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000"
+    # nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
 
     # Nếu bạn muốn nhiều domain → dùng regex
     # nginx.ingress.kubernetes.io/cors-allow-origin: "https://.*"

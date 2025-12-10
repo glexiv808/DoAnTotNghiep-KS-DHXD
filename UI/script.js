@@ -1,8 +1,8 @@
 // =====================================================================
 // 0. API CONFIGURATION & TOKEN MANAGEMENT
 // =====================================================================
-// const API_BASE_URL = 'http://34.87.54.108.nip.io/predict';
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = 'http://34.87.54.108.nip.io';
+// const API_BASE_URL = 'http://127.0.0.1:8000';
 const API_URL = `${API_BASE_URL}/predict`;
 const API_REGISTER = `${API_BASE_URL}/register`;
 const API_LOGIN = `${API_BASE_URL}/login`;
@@ -368,11 +368,11 @@ if (singleForm) {
 
             if (resultValue == 1) {
                 resBox.className = "mt-4 p-4 rounded-lg border-2 text-center bg-green-50 border-green-500 text-green-800";
-                document.getElementById('resTitleSingle').innerText = "DUYỆT VAY";
-                document.getElementById('resMsgSingle').innerText = "Hồ sơ đủ điều kiện (Prediction: 1)";
+                document.getElementById('resTitleSingle').innerText = "Có thể trả nợ";
+                document.getElementById('resMsgSingle').innerText = "Rủi ro thấp (Prediction: 1)";
             } else {
                 resBox.className = "mt-4 p-4 rounded-lg border-2 text-center bg-red-50 border-red-500 text-red-800";
-                document.getElementById('resTitleSingle').innerText = "TỪ CHỐI";
+                document.getElementById('resTitleSingle').innerText = "Không trả được nợ";
                 document.getElementById('resMsgSingle').innerText = "Rủi ro cao (Prediction: 0)";
             }
         } catch (err) {
@@ -962,6 +962,34 @@ function loadSessionData(sessionData) {
 
     alert(`✓ Tải thành công!\nSố bản ghi: ${sessionData.rowCount}`);
 }
+
+// =====================================================================
+// AUTO-CALCULATE LOAN PERCENT INCOME
+// =====================================================================
+function setupAutoCalculateLoanPercent() {
+    const loanAmntInput = document.getElementById('loan_amnt');
+    const personIncomeInput = document.getElementById('person_income');
+    const loanPercentIncomeInput = document.getElementById('loan_percent_income');
+
+    if (!loanAmntInput || !personIncomeInput || !loanPercentIncomeInput) return;
+
+    function calculateLoanPercent() {
+        const loanAmnt = parseFloat(loanAmntInput.value) || 0;
+        const personIncome = parseFloat(personIncomeInput.value) || 0;
+
+        if (personIncome > 0) {
+            const loanPercent = loanAmnt / personIncome;
+            loanPercentIncomeInput.value = loanPercent.toFixed(2);
+        } else {
+            loanPercentIncomeInput.value = '';
+        }
+    }
+
+    loanAmntInput.addEventListener('input', calculateLoanPercent);
+    personIncomeInput.addEventListener('input', calculateLoanPercent);
+}
+
+setupAutoCalculateLoanPercent();
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', initAuthUI);
