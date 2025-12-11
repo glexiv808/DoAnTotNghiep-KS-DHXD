@@ -1,8 +1,8 @@
 // =====================================================================
 // 0. API CONFIGURATION & TOKEN MANAGEMENT
 // =====================================================================
-const API_BASE_URL = 'http://34.87.54.108.nip.io';
-// const API_BASE_URL = 'http://127.0.0.1:8000';
+// const API_BASE_URL = 'http://34.87.54.108.nip.io';
+const API_BASE_URL = 'http://127.0.0.1:8000';
 const API_URL = `${API_BASE_URL}/predict`;
 const API_REGISTER = `${API_BASE_URL}/register`;
 const API_LOGIN = `${API_BASE_URL}/login`;
@@ -387,12 +387,60 @@ if (singleForm) {
 // =====================================================================
 // 5. FORM VALIDATION
 // =====================================================================
+function validateCreditScore(value) {
+    const score = Number(value);
+    if (isNaN(score)) return false;
+    return score >= 300 && score <= 850;
+}
+
 function setupSingleFormValidation() {
     const fields = FIELD_LIST;
     const form = document.getElementById('singleForm');
     const submitButton = document.getElementById('btnSingle');
+    const creditScoreInput = document.getElementById('credit_score');
+    const creditScoreError = document.getElementById('credit_score_error');
 
     if (!form || !submitButton) return;
+
+    // Prevent invalid credit score input directly at the field level
+    if (creditScoreInput) {
+        creditScoreInput.addEventListener('blur', function() {
+            if (this.value) {
+                const score = Number(this.value);
+                if (score < 300) {
+                    this.value = 300;
+                } else if (score > 850) {
+                    this.value = 850;
+                }
+            }
+            // Trigger input event to update validation
+            this.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        creditScoreInput.addEventListener('input', function() {
+            if (this.value && !validateCreditScore(this.value)) {
+                creditScoreError.classList.remove('hidden');
+            } else {
+                creditScoreError.classList.add('hidden');
+            }
+            checkFormValidity();
+        });
+
+        // Also prevent invalid paste
+        creditScoreInput.addEventListener('paste', function(e) {
+            setTimeout(() => {
+                if (this.value) {
+                    const score = Number(this.value);
+                    if (score < 300) {
+                        this.value = 300;
+                    } else if (score > 850) {
+                        this.value = 850;
+                    }
+                }
+                this.dispatchEvent(new Event('input', { bubbles: true }));
+            }, 0);
+        });
+    }
 
     function checkFormValidity() {
         if (!isAuthenticated()) {
@@ -404,6 +452,11 @@ function setupSingleFormValidation() {
         for (const fieldId of fields) {
             const inputElement = document.getElementById(fieldId);
             if (!inputElement || String(inputElement.value).trim() === '') {
+                allValid = false;
+                break;
+            }
+            // Additional validation for credit_score
+            if (fieldId === 'credit_score' && inputElement.value && !validateCreditScore(inputElement.value)) {
                 allValid = false;
                 break;
             }
@@ -476,6 +529,25 @@ async function processBatch() {
     for (const row of batchData) {
         count++;
         const name = row['Ho_ten'] || row['Name'] || row['HO_TEN'] || row['Full Name'] || `Hồ sơ #${count}`;
+
+        // Validate credit_score before processing
+        const creditScoreKey = Object.keys(row).find(k => k.toLowerCase() === 'credit_score');
+        const creditScoreVal = creditScoreKey ? row[creditScoreKey] : 0;
+        
+        if (creditScoreVal && !validateCreditScore(creditScoreVal)) {
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-slate-50 transition border-b border-gray-100 bg-red-50";
+            tr.innerHTML = `
+                <td class="px-5 py-4 text-sm text-gray-500 text-center">${count}</td>
+                <td class="px-5 py-4 text-sm font-bold text-gray-800">${name}</td>
+                <td class="px-5 py-4 text-sm text-gray-600">-</td>
+                <td class="px-5 py-4 text-sm text-center text-gray-600">${creditScoreVal}</td>
+                <td class="px-5 py-4 text-sm text-center"><span class="px-2 py-1 text-red-900 bg-red-200 rounded text-xs">Invalid Score</span></td>
+                <td class="px-5 py-4 text-sm text-center">-</td>
+            `;
+            tbody.appendChild(tr);
+            continue;
+        }
 
         const processedData = {};
         FIELD_LIST.forEach(key => {

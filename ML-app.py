@@ -302,7 +302,7 @@ def trace_span(span_name):
 @trace_span("model-loader")
 def load_model():
     try:
-        model = joblib.load("model_ml.joblib")
+        model = joblib.load("jupiter_notebook/model_ml.joblib")
         return model
     except Exception as e:
         logger.error(f"Error loading model: {e}")
@@ -477,6 +477,18 @@ def predict(
     endpoint_start_time = time.time()
     
     model_request_counter.labels(endpoint="/predict", user=current_user.username).inc()
+    
+    # Validate credit_score (index 11 in FIELD_LIST: person_age, person_gender, person_education, person_income, person_emp_exp, person_home_ownership, loan_amnt, loan_intent, loan_int_rate, loan_percent_income, cb_person_cred_hist_length, credit_score, previous_loan_defaults_on_file)
+    if len(features) > 11:
+        credit_score_normalized = features[11]
+        # Denormalize to check original value: original = (normalized * scale) + mean
+        # Using scaler config: credit_score: { mean: 650, scale: 50 }
+        credit_score_original = (credit_score_normalized * 50) + 650
+        if credit_score_original < 300 or credit_score_original > 850:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Credit score must be between 300 and 850"
+            )
     
     try:
         with tracer.start_as_current_span("prediction-endpoint") as span:
