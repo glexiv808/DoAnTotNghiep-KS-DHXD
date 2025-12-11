@@ -575,7 +575,7 @@ def health():
         return {
             "status": "healthy",
             "model_loaded": model_loaded,
-            "service": "ml-prediction-service-with-auth",
+            "service": "ml-prediction-service",
             "database": "connected",
             "metrics_endpoint": "/metrics"
         }
