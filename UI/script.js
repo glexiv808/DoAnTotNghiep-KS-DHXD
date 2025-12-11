@@ -34,14 +34,14 @@ function getAuthHeader() {
 // 1. CẤU HÌNH HỆ THỐNG
 // =====================================================================
 const SCALER_CONFIG = {
-    person_age: { mean: 27.73, scale: 6.34 },
-    person_income: { mean: 66079, scale: 61983 },
-    person_emp_exp: { mean: 4.78, scale: 4.14 },
-    loan_amnt: { mean: 9589, scale: 6322 },
-    loan_int_rate: { mean: 11.01, scale: 3.24 },
-    loan_percent_income: { mean: 0.17, scale: 0.10 },
-    cb_person_cred_hist_length: { mean: 5.80, scale: 4.05 },
-    credit_score: { mean: 650, scale: 50 },
+    person_age: { mean: 27.76417777777778, scale: 6.045041043106284 },
+    person_income: { mean: 80319.05322222222, scale: 80421.60504361271 },
+    person_emp_exp: { mean: 5.410333333333333, scale: 6.0634647136215225 },
+    loan_amnt: { mean: 9583.157555555556, scale: 6314.816524743712 },
+    loan_int_rate: { mean: 11.006605777777779, scale: 2.9787751821717214 },
+    loan_percent_income: { mean: 0.1397248888888889, scale: 0.08721133898301228 },
+    cb_person_cred_hist_length: { mean: 5.8674888888888885, scale: 3.8796587371240796 },
+    credit_score: { mean: 632.6087555555556, scale: 50.43530459912891 },
 };
 
 const CAT_MAP = {
@@ -1051,7 +1051,7 @@ function setupAutoCalculateLoanPercent() {
 
         if (personIncome > 0) {
             const loanPercent = loanAmnt / personIncome;
-            loanPercentIncomeInput.value = loanPercent.toFixed(2);
+            loanPercentIncomeInput.value = loanPercent.toFixed(3);
         } else {
             loanPercentIncomeInput.value = '';
         }
