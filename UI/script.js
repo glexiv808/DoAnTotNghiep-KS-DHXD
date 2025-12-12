@@ -46,9 +46,9 @@ const SCALER_CONFIG = {
 
 const CAT_MAP = {
     person_gender: { 'female': 0, 'male': 1, 'nu': 0, 'nam': 1 },
-    person_education: { 'high school': 0, 'associate': 1, 'bachelor': 2, 'master': 3, 'doctorate': 4 },
-    person_home_ownership: { 'rent': 0, 'mortgage': 1, 'own': 2, 'other': 3 },
-    loan_intent: { 'education': 0, 'medical': 1, 'venture': 2, 'personal': 3, 'debtconsolidation': 4, 'homeimprovement': 5 },
+    person_education: { 'high school': 3, 'bachelor': 1,  'master': 4, 'doctorate': 2 },
+    person_home_ownership: { 'mortgage': 0, 'own': 2, 'rent': 3},
+    loan_intent: { 'education': 1, 'medical': 3, 'venture': 5, 'personal': 4, 'debtconsolidation': 0, 'homeimprovement': 2 },
     previous_loan_defaults_on_file: { 'no': 0, 'yes': 1, 'khong': 0, 'co': 1 }
 };
 
