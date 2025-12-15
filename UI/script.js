@@ -1163,6 +1163,38 @@ function updateTimeComparison(results) {
     }
 }
 
+function updateBestBadge(results) {
+    if (!results) return;
+    
+    // Hide all badges first
+    document.getElementById('badge_xgb').classList.add('hidden');
+    document.getElementById('badge_rf').classList.add('hidden');
+    document.getElementById('badge_lr').classList.add('hidden');
+    
+    // Get accuracies
+    const accuracies = {
+        'xgb': results.xgboost?.accuracy || 0,
+        'rf': results.random_forest?.accuracy || 0,
+        'lr': results.logistic_regression?.accuracy || 0
+    };
+    
+    // Find the model with highest accuracy
+    let bestModel = 'xgb';
+    let maxAccuracy = accuracies.xgb;
+    
+    if (accuracies.rf > maxAccuracy) {
+        bestModel = 'rf';
+        maxAccuracy = accuracies.rf;
+    }
+    if (accuracies.lr > maxAccuracy) {
+        bestModel = 'lr';
+        maxAccuracy = accuracies.lr;
+    }
+    
+    // Show badge for best model
+    document.getElementById(`badge_${bestModel}`).classList.remove('hidden');
+}
+
 async function runComparisonDemo() {
     const fileInput = document.getElementById('testDatasetFile');
     if (!fileInput.files || fileInput.files.length === 0) {
@@ -1217,6 +1249,7 @@ async function runComparisonDemo() {
         updateModelMetrics('rf', results.random_forest);
         updateModelMetrics('lr', results.logistic_regression);
         updateTimeComparison(results);
+        updateBestBadge(results);
         
         alert("✓ Chạy so sánh thành công!");
 

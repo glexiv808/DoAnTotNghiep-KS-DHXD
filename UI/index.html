@@ -131,8 +131,8 @@
                 <!-- Models Performance Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
                     <!-- Model 1: XGBoost -->
-                    <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl shadow-md border-2 border-indigo-200 overflow-hidden transform transition hover:scale-105 hover:shadow-lg">
-                        <div class="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[11px] px-3 py-1 rounded-full font-bold shadow-md">⭐ BEST</div>
+                    <div class="relative bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl shadow-md border-2 border-indigo-200 overflow-hidden transform transition hover:scale-105 hover:shadow-lg">
+                        <div id="badge_xgb" class="hidden absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[11px] px-3 py-1 rounded-full font-bold shadow-md animate-bounce">⭐ BEST</div>
                         <div class="p-5 border-b border-indigo-200 bg-gradient-to-r from-indigo-600 to-indigo-700">
                             <h4 class="font-bold text-white text-lg">XGBoost</h4>
                             <p class="text-indigo-100 text-xs font-semibold">Gradient Boosting Algorithm</p>
@@ -164,7 +164,8 @@
                     </div>
 
                     <!-- Model 2: Random Forest -->
-                    <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl shadow-md border-2 border-emerald-200 overflow-hidden transform transition hover:scale-105 hover:shadow-lg">
+                    <div class="relative bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl shadow-md border-2 border-emerald-200 overflow-hidden transform transition hover:scale-105 hover:shadow-lg">
+                        <div id="badge_rf" class="hidden absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[11px] px-3 py-1 rounded-full font-bold shadow-md animate-bounce">⭐ BEST</div>
                         <div class="p-5 border-b border-emerald-200 bg-gradient-to-r from-emerald-600 to-emerald-700">
                             <h4 class="font-bold text-white text-lg">Random Forest</h4>
                             <p class="text-emerald-100 text-xs font-semibold">Ensemble Learning</p>
@@ -196,7 +197,8 @@
                     </div>
 
                     <!-- Model 3: Logistic Regression -->
-                    <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-md border-2 border-blue-200 overflow-hidden transform transition hover:scale-105 hover:shadow-lg">
+                    <div class="relative bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-md border-2 border-blue-200 overflow-hidden transform transition hover:scale-105 hover:shadow-lg">
+                        <div id="badge_lr" class="hidden absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[11px] px-3 py-1 rounded-full font-bold shadow-md animate-bounce">⭐ BEST</div>
                         <div class="p-5 border-b border-blue-200 bg-gradient-to-r from-blue-600 to-blue-700">
                             <h4 class="font-bold text-white text-lg">Logistic Regression</h4>
                             <p class="text-blue-100 text-xs font-semibold">Linear Statistical Model</p>
