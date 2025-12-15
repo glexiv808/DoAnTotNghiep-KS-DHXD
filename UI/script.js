@@ -830,28 +830,31 @@ function saveResults() {
         });
     });
 
-    // Create save data object
-    const saveData = {
-        username: document.getElementById('currentUser').textContent,
-        timestamp: new Date().toISOString(),
-        results: results,
-        rowCount: results.length
-    };
-
-    // Save to localStorage with username as key
-    const username = saveData.username;
-    const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '{}');
-    const sessionId = `session_${Date.now()}`;
-    
-    savedSessions[sessionId] = saveData;
-    localStorage.setItem('savedSessions', JSON.stringify(savedSessions));
-
-    // Also save to user-specific storage
-    localStorage.setItem(`session_${username}_${sessionId}`, JSON.stringify(saveData));
-
-    alert(`✓ Lưu thành công!\nSession: ${new Date(saveData.timestamp).toLocaleString('vi-VN')}\nSố bản ghi: ${results.length}`);
-    
-    console.log('Saved data:', saveData);
+    // Save to database via API
+    fetch(`${API_BASE_URL}/save-results`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader()
+        },
+        body: JSON.stringify(results)
+    })
+    .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+    })
+    .then(data => {
+        if (data.success) {
+            alert(`✓ Lưu thành công!\nThời gian: ${new Date(data.timestamp).toLocaleString('vi-VN')}\nSố bản ghi: ${results.length}\nSession ID: ${data.session_id}`);
+            console.log('Saved to database:', data);
+        } else {
+            alert('Lỗi: ' + (data.message || 'Không thể lưu dữ liệu'));
+        }
+    })
+    .catch(error => {
+        console.error('Save error:', error);
+        alert('Lỗi khi lưu dữ liệu: ' + error.message);
+    });
 }
 
 function loadResults() {
@@ -860,54 +863,55 @@ function loadResults() {
         return;
     }
 
-    const username = document.getElementById('currentUser').textContent;
-    const savedSessions = JSON.parse(localStorage.getItem('savedSessions') || '{}');
-
-    if (Object.keys(savedSessions).length === 0) {
-        alert('Không có dữ liệu đã lưu');
-        return;
-    }
-
-    // Filter sessions by current user
-    const userSessions = {};
-    Object.entries(savedSessions).forEach(([key, session]) => {
-        if (session.username === username) {
-            userSessions[key] = session;
+    // Load all sessions from database
+    fetch(`${API_BASE_URL}/load-results`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader()
         }
-    });
-
-    if (Object.keys(userSessions).length === 0) {
-        alert('Không có dữ liệu đã lưu cho người dùng này');
-        return;
-    }
-
-    // Create a dialog to select which session to load
-    const sessionList = Object.entries(userSessions)
-        .map(([id, session]) => {
-            const date = new Date(session.timestamp).toLocaleString('vi-VN');
-            return { id, date, rowCount: session.rowCount };
-        })
-        .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    // Simple selection using prompt (can be improved with modal)
-    let selectedIndex = 0;
-    if (sessionList.length > 1) {
-        const options = sessionList
-            .map((s, i) => `${i}: ${s.date} (${s.rowCount} bản ghi)`)
-            .join('\n');
-        const input = prompt(`Chọn session để tải:\n${options}\n\nNhập số thứ tự (0-${sessionList.length - 1}):`, '0');
-        
-        if (input === null) return; // User cancelled
-        
-        selectedIndex = parseInt(input);
-        if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= sessionList.length) {
-            alert('Lựa chọn không hợp lệ');
+    })
+    .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+    })
+    .then(data => {
+        if (!data.success || data.sessions.length === 0) {
+            alert(data.message || 'Không có dữ liệu đã lưu');
             return;
         }
-    }
 
-    const selectedSession = userSessions[sessionList[selectedIndex].id];
-    loadSessionData(selectedSession);
+        // Create a dialog to select which session to load
+        const sessionList = data.sessions
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        // Simple selection using prompt (can be improved with modal)
+        let selectedIndex = 0;
+        if (sessionList.length > 1) {
+            const options = sessionList
+                .map((s, i) => {
+                    const date = new Date(s.timestamp).toLocaleString('vi-VN');
+                    return `${i}: ${date} (${s.rowCount} bản ghi)`;
+                })
+                .join('\n');
+            const input = prompt(`Chọn session để tải:\n${options}\n\nNhập số thứ tự (0-${sessionList.length - 1}):`, '0');
+            
+            if (input === null) return; // User cancelled
+            
+            selectedIndex = parseInt(input);
+            if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= sessionList.length) {
+                alert('Lựa chọn không hợp lệ');
+                return;
+            }
+        }
+
+        const selectedSession = sessionList[selectedIndex];
+        loadSessionData(selectedSession);
+    })
+    .catch(error => {
+        console.error('Load error:', error);
+        alert('Lỗi khi tải dữ liệu: ' + error.message);
+    });
 }
 
 function loadSessionData(sessionData) {
@@ -1062,6 +1066,168 @@ function setupAutoCalculateLoanPercent() {
 }
 
 setupAutoCalculateLoanPercent();
+
+// =====================================================================
+// 9. EXCEL FILE READING FOR COMPARISON
+// =====================================================================
+function readExcelFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.SheetNames[0];
+                let jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet]);
+                
+                // Xử lý dữ liệu: Chuyển đổi cột text thành chữ thường và normalize
+                jsonData = jsonData.map(row => {
+                    const newRow = {};
+                    for (const key in row) {
+                        let value = row[key];
+                        
+                        // Chuyển text thành chữ thường để dễ so sánh
+                        if (typeof value === 'string') {
+                            value = value.toLowerCase().trim();
+                        }
+                        
+                        newRow[key.toLowerCase().trim()] = value;
+                    }
+                    return newRow;
+                });
+                
+                resolve(jsonData);
+            } catch (err) {
+                reject(err);
+            }
+        };
+        reader.onerror = (err) => reject(err);
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+// =====================================================================
+// 10. MODEL COMPARISON FUNCTIONS
+// =====================================================================
+function updateModelMetrics(prefix, metrics) {
+    if (!metrics || metrics.error) return;
+    
+    // Handle percentage or decimal
+    const acc = metrics.accuracy > 1 ? metrics.accuracy : metrics.accuracy * 100;
+    const time = Math.round(metrics.time);
+    
+    // Update main card display
+    document.getElementById(`acc_${prefix}`).innerText = acc.toFixed(1) + '%';
+    document.getElementById(`prec_${prefix}`).innerText = metrics.precision.toFixed(2);
+    document.getElementById(`rec_${prefix}`).innerText = metrics.recall.toFixed(2);
+    document.getElementById(`f1_${prefix}`).innerText = metrics.f1.toFixed(2);
+    document.getElementById(`time_${prefix}`).innerText = time + ' ms';
+    
+    // Update bar charts for accuracy
+    document.getElementById(`bar_acc_${prefix}`).innerText = acc.toFixed(1) + '%';
+    const barElement = document.getElementById(`bar_${prefix}`);
+    if (barElement) {
+        barElement.style.width = acc + '%';
+    }
+    
+    // Update table
+    document.getElementById(`tbl_acc_${prefix}`).innerText = acc.toFixed(2) + '%';
+    document.getElementById(`tbl_prec_${prefix}`).innerText = metrics.precision.toFixed(2);
+    document.getElementById(`tbl_rec_${prefix}`).innerText = metrics.recall.toFixed(2);
+    document.getElementById(`tbl_f1_${prefix}`).innerText = metrics.f1.toFixed(2);
+    document.getElementById(`tbl_time_${prefix}`).innerText = time + ' ms';
+}
+
+function updateTimeComparison(results) {
+    if (!results) return;
+    
+    // Find max time for scaling
+    const times = [results.xgboost?.time || 0, results.random_forest?.time || 0, results.logistic_regression?.time || 0];
+    const maxTime = Math.max(...times);
+    
+    if (maxTime > 0) {
+        // XGBoost
+        document.getElementById('time_bar_xgb').innerText = Math.round(results.xgboost.time) + ' ms';
+        const xgbPercent = (results.xgboost.time / maxTime) * 100;
+        document.getElementById('time_bar_xgb_fill').style.width = xgbPercent + '%';
+        
+        // Random Forest
+        document.getElementById('time_bar_rf').innerText = Math.round(results.random_forest.time) + ' ms';
+        const rfPercent = (results.random_forest.time / maxTime) * 100;
+        document.getElementById('time_bar_rf_fill').style.width = rfPercent + '%';
+        
+        // Logistic Regression
+        document.getElementById('time_bar_lr').innerText = Math.round(results.logistic_regression.time) + ' ms';
+        const lrPercent = (results.logistic_regression.time / maxTime) * 100;
+        document.getElementById('time_bar_lr_fill').style.width = lrPercent + '%';
+    }
+}
+
+async function runComparisonDemo() {
+    const fileInput = document.getElementById('testDatasetFile');
+    if (!fileInput.files || fileInput.files.length === 0) {
+        alert("Vui lòng chọn file dữ liệu kiểm thử (Excel/CSV) trước khi chạy đánh giá!");
+        return;
+    }
+
+    if (typeof isAuthenticated === 'function' && !isAuthenticated()) {
+        alert("Vui lòng đăng nhập để thực hiện chức năng này!");
+        return;
+    }
+
+    const btn = document.getElementById('btnRunComparison');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = `<div class="loader ease-linear rounded-full border-2 border-t-2 border-white h-5 w-5"></div><span>ĐANG CHẠY...</span>`;
+    btn.disabled = true;
+
+    try {
+        const file = fileInput.files[0];
+        let jsonData = await readExcelFile(file);
+
+        if (jsonData.length === 0) {
+            throw new Error("File không có dữ liệu!");
+        }
+
+        // Log để debug
+        console.log("Excel data loaded:", jsonData.slice(0, 2));
+
+        // Call API endpoint /evaluate
+        // Note: API_BASE_URL is defined in script.js
+        const response = await fetch(`${API_BASE_URL}/evaluate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(typeof getAuthHeader === 'function' ? getAuthHeader() : {})
+            },
+            body: JSON.stringify(jsonData)
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            console.error("API Response Error:", errData);
+            throw new Error(errData.detail || `Lỗi server: ${response.status}`);
+        }
+
+        const results = await response.json();
+        
+        console.log("Comparison results:", results);
+        
+        // Update UI with real data
+        updateModelMetrics('xgb', results.xgboost);
+        updateModelMetrics('rf', results.random_forest);
+        updateModelMetrics('lr', results.logistic_regression);
+        updateTimeComparison(results);
+        
+        alert("✓ Chạy so sánh thành công!");
+
+    } catch (error) {
+        console.error("Comparison Error:", error);
+        alert("Có lỗi xảy ra: " + error.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', initAuthUI);
