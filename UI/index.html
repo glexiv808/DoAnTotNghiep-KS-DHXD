@@ -15,6 +15,8 @@
 
 <body class="bg-slate-100 min-h-screen font-sans text-slate-800">
 
+
+
     <!-- ==================== LOGIN MODAL ==================== -->
     <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
@@ -111,7 +113,7 @@
                     </h4>
                     <div class="flex flex-col lg:flex-row gap-4 items-end">
                         <div class="flex-1 w-full">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">📊 Chọn tập dữ liệu kiểm thử (có nhãn thực tế):</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Chọn tập dữ liệu kiểm thử (có nhãn thực tế):</label>
                             <input type="file" id="testDatasetFile" accept=".xlsx, .csv" class="block w-full text-sm text-slate-500
                                 file:mr-4 file:py-2 file:px-4
                                 file:rounded-lg file:border-0
@@ -156,7 +158,7 @@
                                     <span class="font-bold text-indigo-600 text-lg" id="f1_xgb">--</span>
                                 </div>
                                 <div class="flex justify-between items-center bg-indigo-200 p-3 rounded-lg">
-                                    <span class="text-gray-700 font-medium">⏱️ Time</span>
+                                    <span class="text-gray-700 font-medium">Time</span>
                                     <span class="font-mono text-xs font-bold text-indigo-700" id="time_xgb">-- ms</span>
                                 </div>
                             </div>
@@ -189,7 +191,7 @@
                                     <span class="font-bold text-emerald-600 text-lg" id="f1_rf">--</span>
                                 </div>
                                 <div class="flex justify-between items-center bg-emerald-200 p-3 rounded-lg">
-                                    <span class="text-gray-700 font-medium">⏱️ Time</span>
+                                    <span class="text-gray-700 font-medium">Time</span>
                                     <span class="font-mono text-xs font-bold text-emerald-700" id="time_rf">-- ms</span>
                                 </div>
                             </div>
@@ -222,7 +224,7 @@
                                     <span class="font-bold text-blue-600 text-lg" id="f1_lr">--</span>
                                 </div>
                                 <div class="flex justify-between items-center bg-blue-200 p-3 rounded-lg">
-                                    <span class="text-gray-700 font-medium">⏱️ Time</span>
+                                    <span class="text-gray-700 font-medium">Time</span>
                                     <span class="font-mono text-xs font-bold text-blue-700" id="time_lr">-- ms</span>
                                 </div>
                             </div>
@@ -373,6 +375,10 @@
                 <p class="text-indigo-300 text-xs">Hỗ trợ Excel (.xlsx) và CSV (.csv)</p>
             </div>
             <div class="text-right flex items-center gap-4">
+                <a href="loan_management.html" class="hidden md:flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-blue-100 px-4 py-2 rounded-lg text-sm font-medium transition border border-blue-600">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2H4a1 1 0 110-2V4zm3 5a1 1 0 000 2h6a1 1 0 000-2H7z"></path></svg>
+                    Quản lý HĐ
+                </a>
                 <button onclick="document.getElementById('comparisonModal').classList.remove('hidden')" class="hidden md:flex items-center gap-2 bg-indigo-800 hover:bg-indigo-700 text-indigo-100 px-4 py-2 rounded-lg text-sm font-medium transition border border-indigo-700">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     So sánh Model
@@ -406,7 +412,8 @@
                                 <label class="block font-medium text-gray-600 mb-1">Tuổi person_age</label>
                                 <input type="number" id="person_age"
                                     class="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="VD: 25">
+                                    placeholder="VD: 25" min="20" max="66">
+                                <span id="person_age_error" class="text-red-500 text-xs hidden">Tuổi phải từ 20 đến 66</span>
                             </div>
                             <div>
                                 <label class="block font-medium text-gray-600 mb-1">Giới tính</label>
@@ -422,7 +429,8 @@
                                 person_income</label>
                             <input type="number" id="person_income"
                                 class="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="VD: 60000">
+                                placeholder="VD: 60000" max="2000000">
+                            <span id="person_income_error" class="text-red-500 text-xs hidden">Thu nhập không vượt quá 2,000,000 đô</span>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
@@ -441,7 +449,8 @@
                                     person_emp_exp</label>
                                 <input type="number" id="person_emp_exp"
                                     class="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="VD: 3">
+                                    placeholder="VD: 3" min="0">
+                                <span id="person_emp_exp_error" class="text-red-500 text-xs hidden">Kinh nghiệm không được vượt quá (tuổi - 18)</span>
                             </div>
                         </div>
 
@@ -454,13 +463,15 @@
                                 <label class="block font-medium text-gray-600 mb-1">Số tiền vay ($) loan_amnt</label>
                                 <input type="number" id="loan_amnt"
                                     class="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="10000">
+                                    placeholder="10000" max="35000">
+                                <span id="loan_amnt_error" class="text-red-500 text-xs hidden">Số tiền vay không vượt quá 35,000 đô</span>
                             </div>
                             <div>
                                 <label class="block font-medium text-gray-600 mb-1">Lãi suất (%) loan_int_rate</label>
                                 <input type="number" step="0.01" id="loan_int_rate"
                                     class="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="11.5">
+                                    placeholder="11.5" min="0" max="20">
+                                <span id="loan_int_rate_error" class="text-red-500 text-xs hidden">Lãi suất không vượt quá 20%</span>
                             </div>
                         </div>
 

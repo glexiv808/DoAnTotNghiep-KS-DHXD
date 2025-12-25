@@ -8,6 +8,9 @@ const API_REGISTER = `${API_BASE_URL}/register`;
 const API_LOGIN = `${API_BASE_URL}/login`;
 const API_LOGOUT = `${API_BASE_URL}/logout`;
 
+// Loan API endpoints
+const LOAN_API_ENDPOINT = `${API_BASE_URL}`;
+
 // Token management
 function getToken() {
     return localStorage.getItem('access_token');
@@ -393,12 +396,54 @@ function validateCreditScore(value) {
     return score >= 300 && score <= 850;
 }
 
+function validatePersonAge(value) {
+    const age = Number(value);
+    if (isNaN(age)) return false;
+    return age >= 20 && age <= 66;
+}
+
+function validatePersonIncome(value) {
+    const income = Number(value);
+    if (isNaN(income)) return false;
+    return income <= 2000000;
+}
+
+function validateLoanAmnt(value) {
+    const amnt = Number(value);
+    if (isNaN(amnt)) return false;
+    return amnt <= 35000;
+}
+
+function validateLoanIntRate(value) {
+    const rate = Number(value);
+    if (isNaN(rate)) return false;
+    return rate >= 0 && rate <= 20;
+}
+
+function validatePersonEmpExp(value, age) {
+    const exp = Number(value);
+    const ageNum = Number(age);
+    if (isNaN(exp) || isNaN(ageNum)) return false;
+    // Kinh nghiệm không được vượt quá (age - 18), giả sử bắt đầu làm việc từ 18 tuổi
+    return exp >= 0 && exp <= (ageNum - 18);
+}
+
 function setupSingleFormValidation() {
     const fields = FIELD_LIST;
     const form = document.getElementById('singleForm');
     const submitButton = document.getElementById('btnSingle');
     const creditScoreInput = document.getElementById('credit_score');
     const creditScoreError = document.getElementById('credit_score_error');
+    const personAgeInput = document.getElementById('person_age');
+    const personAgeError = document.getElementById('person_age_error');
+    const personIncomeInput = document.getElementById('person_income');
+    const personIncomeError = document.getElementById('person_income_error');
+    const loanAmntInput = document.getElementById('loan_amnt');
+    const loanAmntError = document.getElementById('loan_amnt_error');
+    const loanIntRateInput = document.getElementById('loan_int_rate');
+    const loanIntRateError = document.getElementById('loan_int_rate_error');
+    const personEmpExpInput = document.getElementById('person_emp_exp');
+    const personEmpExpError = document.getElementById('person_emp_exp_error');
 
     if (!form || !submitButton) return;
 
@@ -442,6 +487,120 @@ function setupSingleFormValidation() {
         });
     }
 
+    // Validate person_age
+    if (personAgeInput) {
+        personAgeInput.addEventListener('blur', function() {
+            if (this.value) {
+                const age = Number(this.value);
+                if (age < 20) {
+                    this.value = 20;
+                } else if (age > 66) {
+                    this.value = 66;
+                }
+            }
+            this.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        personAgeInput.addEventListener('input', function() {
+            if (this.value && !validatePersonAge(this.value)) {
+                personAgeError.classList.remove('hidden');
+            } else {
+                personAgeError.classList.add('hidden');
+            }
+            checkFormValidity();
+        });
+    }
+
+    // Validate person_income
+    if (personIncomeInput) {
+        personIncomeInput.addEventListener('blur', function() {
+            if (this.value) {
+                const income = Number(this.value);
+                if (income > 2000000) {
+                    this.value = 2000000;
+                }
+            }
+            this.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        personIncomeInput.addEventListener('input', function() {
+            if (this.value && !validatePersonIncome(this.value)) {
+                personIncomeError.classList.remove('hidden');
+            } else {
+                personIncomeError.classList.add('hidden');
+            }
+            checkFormValidity();
+        });
+    }
+
+    // Validate loan_amnt
+    if (loanAmntInput) {
+        loanAmntInput.addEventListener('blur', function() {
+            if (this.value) {
+                const amnt = Number(this.value);
+                if (amnt > 35000) {
+                    this.value = 35000;
+                }
+            }
+            this.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        loanAmntInput.addEventListener('input', function() {
+            if (this.value && !validateLoanAmnt(this.value)) {
+                loanAmntError.classList.remove('hidden');
+            } else {
+                loanAmntError.classList.add('hidden');
+            }
+            checkFormValidity();
+        });
+    }
+
+    // Validate loan_int_rate
+    if (loanIntRateInput) {
+        loanIntRateInput.addEventListener('blur', function() {
+            if (this.value) {
+                const rate = Number(this.value);
+                if (rate < 0) {
+                    this.value = 0;
+                } else if (rate > 20) {
+                    this.value = 20;
+                }
+            }
+            this.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        loanIntRateInput.addEventListener('input', function() {
+            if (this.value && !validateLoanIntRate(this.value)) {
+                loanIntRateError.classList.remove('hidden');
+            } else {
+                loanIntRateError.classList.add('hidden');
+            }
+            checkFormValidity();
+        });
+    }
+
+    // Validate person_emp_exp (must be <= person_age)
+    if (personEmpExpInput) {
+        personEmpExpInput.addEventListener('input', function() {
+            const age = Number(personAgeInput.value);
+            if (this.value && !validatePersonEmpExp(this.value, age)) {
+                personEmpExpError.classList.remove('hidden');
+            } else {
+                personEmpExpError.classList.add('hidden');
+            }
+            checkFormValidity();
+        });
+    }
+
+    // Also validate person_emp_exp when age changes
+    if (personAgeInput) {
+        personAgeInput.addEventListener('change', function() {
+            if (personEmpExpInput && personEmpExpInput.value) {
+                personEmpExpInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        });
+    }
+
     function checkFormValidity() {
         if (!isAuthenticated()) {
             submitButton.disabled = true;
@@ -459,6 +618,34 @@ function setupSingleFormValidation() {
             if (fieldId === 'credit_score' && inputElement.value && !validateCreditScore(inputElement.value)) {
                 allValid = false;
                 break;
+            }
+            // Validation for person_age
+            if (fieldId === 'person_age' && inputElement.value && !validatePersonAge(inputElement.value)) {
+                allValid = false;
+                break;
+            }
+            // Validation for person_income
+            if (fieldId === 'person_income' && inputElement.value && !validatePersonIncome(inputElement.value)) {
+                allValid = false;
+                break;
+            }
+            // Validation for loan_amnt
+            if (fieldId === 'loan_amnt' && inputElement.value && !validateLoanAmnt(inputElement.value)) {
+                allValid = false;
+                break;
+            }
+            // Validation for loan_int_rate
+            if (fieldId === 'loan_int_rate' && inputElement.value && !validateLoanIntRate(inputElement.value)) {
+                allValid = false;
+                break;
+            }
+            // Validation for person_emp_exp
+            if (fieldId === 'person_emp_exp' && inputElement.value) {
+                const age = Number(personAgeInput.value);
+                if (!validatePersonEmpExp(inputElement.value, age)) {
+                    allValid = false;
+                    break;
+                }
             }
         }
 
@@ -1263,5 +1450,450 @@ async function runComparisonDemo() {
 }
 
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', initAuthUI);
+document.addEventListener('DOMContentLoaded', () => {
+    initAuthUI();
+});
+
+// =====================================================================
+// 11. LOAN CONTRACT MANAGEMENT - WITH DATABASE INTEGRATION
+// =====================================================================
+
+let sampleLoanContracts = [];
+let filteredLoans = [];
+let currentEditingContract = null;
+let contractCounter = 0;
+let isLoading = false;
+
+// Get authorization headers for loan contract APIs
+function getLoanAuthHeaders() {
+    const token = getToken();
+    return {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+    };
+}
+
+// Load contracts from database on page load
+async function loadLoansFromDatabase() {
+    try {
+        isLoading = true;
+        const response = await fetch(`${LOAN_API_ENDPOINT}/loans`, {
+            method: 'GET',
+            headers: getLoanAuthHeaders()
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            sampleLoanContracts = data.loans || [];
+            filteredLoans = [...sampleLoanContracts];
+            
+            // Update contract counter
+            if (sampleLoanContracts.length > 0) {
+                contractCounter = Math.max(
+                    ...sampleLoanContracts.map(l => {
+                        const num = parseInt(l.contractNumber.replace('HĐ', ''));
+                        return isNaN(num) ? 0 : num;
+                    })
+                );
+            }
+            
+            populateLoanTable();
+        } else {
+            console.warn('Failed to load loans from database, showing empty list');
+            sampleLoanContracts = [];
+            filteredLoans = [];
+            populateLoanTable();
+        }
+    } catch (error) {
+        console.error('Error loading loans:', error);
+        alert('⚠️ Không thể kết nối với database. Vui lòng kiểm tra backend server.');
+        sampleLoanContracts = [];
+        filteredLoans = [];
+        populateLoanTable();
+    } finally {
+        isLoading = false;
+    }
+}
+
+function populateLoanTable(loans = filteredLoans) {
+    const tableBody = document.getElementById('loanContractTableBody');
+    if (!tableBody) return;
+    
+    tableBody.innerHTML = '';
+
+    if (loans.length === 0) {
+        tableBody.innerHTML = '<tr class="text-center text-gray-400 border-b"><td colspan="8" class="py-12">Không có dữ liệu phù hợp</td></tr>';
+        updateLoanStats([]);
+        return;
+    }
+
+    loans.forEach((loan, index) => {
+        const statusColor = getStatusColor(loan.status);
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-50 transition border-b border-gray-200';
+        row.innerHTML = `
+            <td class="px-6 py-4 text-sm text-gray-500 text-center">${index + 1}</td>
+            <td class="px-6 py-4 text-sm font-bold text-gray-800">${loan.contractNumber}</td>
+            <td class="px-6 py-4 text-sm text-gray-700">${loan.customerName}</td>
+            <td class="px-6 py-4 text-sm text-gray-600 text-right">${Number(loan.loanAmount).toLocaleString('vi-VN')} VNĐ</td>
+            <td class="px-6 py-4 text-sm text-center text-gray-600">${loan.interestRate}%</td>
+            <td class="px-6 py-4 text-sm text-gray-600">${new Date(loan.createdDate).toLocaleDateString('vi-VN')}</td>
+            <td class="px-6 py-4 text-sm text-center">
+                <span class="${statusColor.bg} ${statusColor.text} px-3 py-1 rounded-full text-xs font-semibold">
+                    ${getStatusVietnamese(loan.status)}
+                </span>
+            </td>
+            <td class="px-6 py-4 text-sm text-center flex gap-2 justify-center">
+                <button onclick="editLoanContract('${loan.contractNumber}')" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-600 px-3 py-1 rounded transition text-xs font-semibold">Sửa</button>
+                <button onclick="deleteLoanContract('${loan.contractNumber}')" class="bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1 rounded transition text-xs font-semibold">Xóa</button>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+
+    updateLoanStats(loans);
+}
+
+function getStatusColor(status) {
+    const colors = {
+        'active': { bg: 'bg-emerald-100', text: 'text-emerald-800' },
+        'pending': { bg: 'bg-yellow-100', text: 'text-yellow-800' },
+        'paid': { bg: 'bg-blue-100', text: 'text-blue-800' },
+        'default': { bg: 'bg-red-100', text: 'text-red-800' }
+    };
+    return colors[status] || colors['active'];
+}
+
+function getStatusVietnamese(status) {
+    const statusMap = {
+        'active': '✓ Đang hoạt động',
+        'pending': '⏱ Chờ xử lý',
+        'paid': '✓ Đã thanh toán',
+        'default': '✕ Mặc định'
+    };
+    return statusMap[status] || status;
+}
+
+function updateLoanStats(loans) {
+    const total = loans.length;
+    const active = loans.filter(l => l.status === 'active').length;
+    const pending = loans.filter(l => l.status === 'pending').length;
+    const defaultCount = loans.filter(l => l.status === 'default').length;
+
+    const statTotal = document.getElementById('stat_total');
+    const statActive = document.getElementById('stat_active');
+    const statPending = document.getElementById('stat_pending');
+    const statDefault = document.getElementById('stat_default');
+
+    if (statTotal) statTotal.innerText = total;
+    if (statActive) statActive.innerText = active;
+    if (statPending) statPending.innerText = pending;
+    if (statDefault) statDefault.innerText = defaultCount;
+}
+
+function searchAndFilterLoans() {
+    const searchInput = document.getElementById('searchLoanContract');
+    const statusFilter = document.getElementById('filterLoanStatus');
+    const dateFilter = document.getElementById('filterLoanDate');
+
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+    const statusVal = statusFilter ? statusFilter.value : '';
+    const dateVal = dateFilter ? dateFilter.value : '';
+
+    filteredLoans = sampleLoanContracts.filter(loan => {
+        // Search filter
+        const matchesSearch = !searchTerm || 
+            loan.contractNumber.toLowerCase().includes(searchTerm) ||
+            loan.customerName.toLowerCase().includes(searchTerm);
+
+        // Status filter
+        const matchesStatus = !statusVal || loan.status === statusVal;
+
+        // Date filter
+        let matchesDate = true;
+        if (dateVal) {
+            const loanDate = new Date(loan.createdDate);
+            const filterDate = new Date(dateVal);
+            matchesDate = loanDate.toDateString() === filterDate.toDateString();
+        }
+
+        return matchesSearch && matchesStatus && matchesDate;
+    });
+
+    populateLoanTable(filteredLoans);
+}
+
+function editLoanContract(contractNumber) {
+    currentEditingContract = sampleLoanContracts.find(l => l.contractNumber === contractNumber);
+    if (currentEditingContract) {
+        const titleEl = document.getElementById('loanModalTitle');
+        if (titleEl) titleEl.textContent = `Chỉnh sửa Hợp đồng ${contractNumber}`;
+        
+        document.getElementById('loanContractNumber').value = currentEditingContract.contractNumber;
+        document.getElementById('loanCustomerName').value = currentEditingContract.customerName;
+        document.getElementById('loanAmount').value = currentEditingContract.loanAmount;
+        document.getElementById('loanInterestRate').value = currentEditingContract.interestRate;
+        document.getElementById('loanDuration').value = currentEditingContract.loanDuration;
+        document.getElementById('loanCreatedDate').value = currentEditingContract.createdDate;
+        document.getElementById('loanStatus').value = currentEditingContract.status;
+        document.getElementById('loanEmail').value = currentEditingContract.email || '';
+        document.getElementById('loanPhone').value = currentEditingContract.phone || '';
+        document.getElementById('loanDescription').value = currentEditingContract.description || '';
+        document.getElementById('loanContractNumber').disabled = true;
+        document.getElementById('loanModal').classList.remove('hidden');
+    }
+}
+
+function deleteLoanContract(contractNumber) {
+    if (confirm(`Bạn chắc chắn muốn xóa hợp đồng ${contractNumber}?`)) {
+        deleteLoanFromDatabase(contractNumber);
+    }
+}
+
+// Delete loan from database
+async function deleteLoanFromDatabase(contractNumber) {
+    try {
+        const response = await fetch(`${LOAN_API_ENDPOINT}/loans/${contractNumber}`, {
+            method: 'DELETE',
+            headers: getLoanAuthHeaders()
+        });
+
+        if (response.ok) {
+            const index = sampleLoanContracts.findIndex(l => l.contractNumber === contractNumber);
+            if (index > -1) {
+                sampleLoanContracts.splice(index, 1);
+            }
+            filteredLoans = [...sampleLoanContracts];
+            populateLoanTable();
+            alert('✓ Xóa hợp đồng thành công!');
+        } else {
+            const error = await response.json();
+            alert(error.message || 'Lỗi khi xóa hợp đồng');
+        }
+    } catch (error) {
+        console.error('Error deleting loan:', error);
+        alert('⚠️ Không thể kết nối với database');
+    }
+}
+
+function openAddLoanModal() {
+    currentEditingContract = null;
+    const titleEl = document.getElementById('loanModalTitle');
+    if (titleEl) titleEl.textContent = 'Thêm Hợp đồng Vay vốn';
+    
+    document.getElementById('loanContractNumber').value = 'HĐ' + String(++contractCounter).padStart(3, '0');
+    document.getElementById('loanCustomerName').value = '';
+    document.getElementById('loanAmount').value = '';
+    document.getElementById('loanInterestRate').value = '';
+    document.getElementById('loanDuration').value = '';
+    document.getElementById('loanCreatedDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('loanStatus').value = 'active';
+    document.getElementById('loanEmail').value = '';
+    document.getElementById('loanPhone').value = '';
+    document.getElementById('loanDescription').value = '';
+    document.getElementById('loanContractNumber').disabled = false;
+    document.getElementById('loanModalError').classList.add('hidden');
+    document.getElementById('loanModal').classList.remove('hidden');
+}
+
+function closeLoanModal() {
+    document.getElementById('loanModal').classList.add('hidden');
+    document.getElementById('loanModalError').classList.add('hidden');
+    currentEditingContract = null;
+}
+
+function saveLoanContract() {
+    const errorDiv = document.getElementById('loanModalError');
+    errorDiv.classList.add('hidden');
+
+    // Validation
+    const contractNumber = document.getElementById('loanContractNumber').value.trim();
+    const customerName = document.getElementById('loanCustomerName').value.trim();
+    const loanAmount = parseFloat(document.getElementById('loanAmount').value);
+    const interestRate = parseFloat(document.getElementById('loanInterestRate').value);
+    const loanDuration = parseInt(document.getElementById('loanDuration').value);
+    const createdDate = document.getElementById('loanCreatedDate').value;
+    const status = document.getElementById('loanStatus').value;
+    const email = document.getElementById('loanEmail').value.trim();
+    const phone = document.getElementById('loanPhone').value.trim();
+    const description = document.getElementById('loanDescription').value.trim();
+
+    // Validate required fields
+    if (!contractNumber || !customerName || !loanAmount || !interestRate || !loanDuration || !createdDate) {
+        showLoanError('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
+        return;
+    }
+
+    if (isNaN(loanAmount) || loanAmount <= 0) {
+        showLoanError('Số tiền vay phải lớn hơn 0');
+        return;
+    }
+
+    if (isNaN(interestRate) || interestRate < 0 || interestRate > 30) {
+        showLoanError('Lãi suất phải từ 0 đến 30%');
+        return;
+    }
+
+    if (isNaN(loanDuration) || loanDuration <= 0) {
+        showLoanError('Thời hạn vay phải lớn hơn 0');
+        return;
+    }
+
+    // Check for duplicate contract number (when adding new)
+    if (!currentEditingContract && sampleLoanContracts.some(l => l.contractNumber === contractNumber)) {
+        showLoanError('Số hợp đồng này đã tồn tại!');
+        return;
+    }
+
+    // Create or update contract
+    const contractData = {
+        contractNumber,
+        customerName,
+        loanAmount,
+        interestRate,
+        loanDuration,
+        createdDate,
+        status,
+        email,
+        phone,
+        description
+    };
+
+    if (currentEditingContract) {
+        // Update existing
+        updateLoanInDatabase(contractNumber, contractData);
+    } else {
+        // Add new
+        addLoanToDatabase(contractData);
+    }
+}
+
+// Add loan to database
+async function addLoanToDatabase(contractData) {
+    try {
+        const response = await fetch(`${LOAN_API_ENDPOINT}/loans`, {
+            method: 'POST',
+            headers: getLoanAuthHeaders(),
+            body: JSON.stringify(contractData)
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            sampleLoanContracts.push(result);
+            filteredLoans = [...sampleLoanContracts];
+            populateLoanTable();
+            closeLoanModal();
+            alert('✓ Thêm hợp đồng mới thành công!');
+        } else {
+            const error = await response.json();
+            showLoanError(error.message || 'Lỗi khi thêm hợp đồng');
+        }
+    } catch (error) {
+        console.error('Error adding loan:', error);
+        showLoanError('Không thể kết nối với database');
+    }
+}
+
+// Update loan in database
+async function updateLoanInDatabase(contractNumber, contractData) {
+    try {
+        const response = await fetch(`${LOAN_API_ENDPOINT}/loans/${contractNumber}`, {
+            method: 'PUT',
+            headers: getLoanAuthHeaders(),
+            body: JSON.stringify(contractData)
+        });
+
+        if (response.ok) {
+            const index = sampleLoanContracts.findIndex(l => l.contractNumber === contractNumber);
+            if (index > -1) {
+                sampleLoanContracts[index] = await response.json();
+            }
+            filteredLoans = [...sampleLoanContracts];
+            populateLoanTable();
+            closeLoanModal();
+            alert('✓ Cập nhật hợp đồng thành công!');
+        } else {
+            const error = await response.json();
+            showLoanError(error.message || 'Lỗi khi cập nhật hợp đồng');
+        }
+    } catch (error) {
+        console.error('Error updating loan:', error);
+        showLoanError('Không thể kết nối với database');
+    }
+}
+
+function showLoanError(message) {
+    const errorDiv = document.getElementById('loanModalError');
+    if (errorDiv) {
+        errorDiv.textContent = message;
+        errorDiv.classList.remove('hidden');
+    }
+}
+
+function exportLoanContracts() {
+    if (filteredLoans.length === 0) {
+        alert('Không có dữ liệu để xuất!');
+        return;
+    }
+
+    // Prepare data for Excel
+    const exportData = filteredLoans.map((loan, index) => ({
+        'STT': index + 1,
+        'Số HĐ': loan.contractNumber,
+        'Tên Khách Hàng': loan.customerName,
+        'Số Tiền (VNĐ)': loan.loanAmount,
+        'Lãi Suất (%)': loan.interestRate,
+        'Thời Hạn (tháng)': loan.loanDuration,
+        'Ngày Tạo': new Date(loan.createdDate).toLocaleDateString('vi-VN'),
+        'Trạng Thái': getStatusVietnamese(loan.status),
+        'Email': loan.email || '',
+        'Điện Thoại': loan.phone || '',
+        'Ghi Chú': loan.description || ''
+    }));
+
+    // Create Excel file
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Hợp Đồng');
+
+    // Set column widths
+    worksheet['!cols'] = [
+        { wch: 5 },
+        { wch: 12 },
+        { wch: 20 },
+        { wch: 18 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 20 },
+        { wch: 15 },
+        { wch: 25 }
+    ];
+
+    // Download file
+    const fileName = `hop_dong_vay_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    alert(`✓ Xuất ${filteredLoans.length} hợp đồng thành công!`);
+}
+
+// Setup event listeners for loan contract management
+function setupLoanContractListeners() {
+    const searchInput = document.getElementById('searchLoanContract');
+    const statusFilter = document.getElementById('filterLoanStatus');
+    const dateFilter = document.getElementById('filterLoanDate');
+
+    if (searchInput) searchInput.addEventListener('input', searchAndFilterLoans);
+    if (statusFilter) statusFilter.addEventListener('change', searchAndFilterLoans);
+    if (dateFilter) dateFilter.addEventListener('change', searchAndFilterLoans);
+}
+
+// Initialize loan management on loan_management.html page
+function initializeLoanManagement() {
+    // Load loans from database
+    loadLoansFromDatabase();
+    // Setup event listeners
+    setupLoanContractListeners();
+}
 

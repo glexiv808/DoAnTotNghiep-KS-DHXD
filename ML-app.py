@@ -98,6 +98,23 @@ class ProcessingResult(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+# Loan Contract Model
+class LoanContractDB(Base):
+    __tablename__ = "loan_contracts"
+    
+    contractNumber = Column(String, primary_key=True, index=True, nullable=False)
+    customerName = Column(String, nullable=False)
+    loanAmount = Column(String, nullable=False)
+    interestRate = Column(String, nullable=False)
+    loanDuration = Column(String, nullable=False)
+    createdDate = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # Tạo bảng
 Base.metadata.create_all(bind=engine)
 
@@ -138,6 +155,22 @@ class ResultRecord(BaseModel):
 
 class SaveResultsRequest(BaseModel):
     results: List[ResultRecord]
+
+# ==================== LOAN CONTRACT MODELS ====================
+class LoanContract(BaseModel):
+    contractNumber: str
+    customerName: str
+    loanAmount: float
+    interestRate: float
+    loanDuration: int
+    createdDate: str
+    status: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    description: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
 
 # ==================== SECURITY ====================
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -998,6 +1031,175 @@ def root():
             "metrics": "/metrics"
         }
     }
+
+# ==================== LOAN CONTRACT MANAGEMENT ENDPOINTS ====================
+@app.get("/loans")
+async def get_all_loans(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Lấy tất cả hợp đồng vay"""
+    try:
+        loans = db.query(LoanContractDB).all()
+        loans_data = []
+        for loan in loans:
+            loans_data.append({
+                'contractNumber': loan.contractNumber,
+                'customerName': loan.customerName,
+                'loanAmount': loan.loanAmount,
+                'interestRate': loan.interestRate,
+                'loanDuration': loan.loanDuration,
+                'createdDate': loan.createdDate,
+                'status': loan.status,
+                'email': loan.email,
+                'phone': loan.phone,
+                'description': loan.description
+            })
+        return {'loans': loans_data}
+    except Exception as e:
+        logger.error(f"Error fetching loans: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch loans")
+
+@app.get("/loans/{contractNumber}")
+async def get_loan(contractNumber: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Lấy chi tiết một hợp đồng"""
+    try:
+        loan = db.query(LoanContractDB).filter(LoanContractDB.contractNumber == contractNumber).first()
+        if not loan:
+            raise HTTPException(status_code=404, detail="Loan contract not found")
+        
+        return {
+            'contractNumber': loan.contractNumber,
+            'customerName': loan.customerName,
+            'loanAmount': loan.loanAmount,
+            'interestRate': loan.interestRate,
+            'loanDuration': loan.loanDuration,
+            'createdDate': loan.createdDate,
+            'status': loan.status,
+            'email': loan.email,
+            'phone': loan.phone,
+            'description': loan.description
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching loan: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch loan")
+
+@app.post("/loans")
+async def create_loan(loan: LoanContract, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Tạo hợp đồng vay mới"""
+    try:
+        # Check if contract already exists
+        existing = db.query(LoanContractDB).filter(LoanContractDB.contractNumber == loan.contractNumber).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Contract number already exists")
+        
+        # Create new loan contract
+        new_loan = LoanContractDB(
+            contractNumber=loan.contractNumber,
+            customerName=loan.customerName,
+            loanAmount=str(loan.loanAmount),
+            interestRate=str(loan.interestRate),
+            loanDuration=str(loan.loanDuration),
+            createdDate=loan.createdDate,
+            status=loan.status,
+            email=loan.email,
+            phone=loan.phone,
+            description=loan.description
+        )
+        
+        db.add(new_loan)
+        db.commit()
+        db.refresh(new_loan)
+        
+        logger.info(f"New loan contract created: {loan.contractNumber} by {current_user.username}")
+        
+        return {
+            'contractNumber': new_loan.contractNumber,
+            'customerName': new_loan.customerName,
+            'loanAmount': new_loan.loanAmount,
+            'interestRate': new_loan.interestRate,
+            'loanDuration': new_loan.loanDuration,
+            'createdDate': new_loan.createdDate,
+            'status': new_loan.status,
+            'email': new_loan.email,
+            'phone': new_loan.phone,
+            'description': new_loan.description
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating loan: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create loan contract")
+
+@app.put("/loans/{contractNumber}")
+async def update_loan(contractNumber: str, loan: LoanContract, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Cập nhật hợp đồng vay"""
+    try:
+        # Find existing contract
+        existing_loan = db.query(LoanContractDB).filter(LoanContractDB.contractNumber == contractNumber).first()
+        if not existing_loan:
+            raise HTTPException(status_code=404, detail="Loan contract not found")
+        
+        # Update fields
+        existing_loan.customerName = loan.customerName
+        existing_loan.loanAmount = str(loan.loanAmount)
+        existing_loan.interestRate = str(loan.interestRate)
+        existing_loan.loanDuration = str(loan.loanDuration)
+        existing_loan.createdDate = loan.createdDate
+        existing_loan.status = loan.status
+        existing_loan.email = loan.email
+        existing_loan.phone = loan.phone
+        existing_loan.description = loan.description
+        existing_loan.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(existing_loan)
+        
+        logger.info(f"Loan contract updated: {contractNumber} by {current_user.username}")
+        
+        return {
+            'contractNumber': existing_loan.contractNumber,
+            'customerName': existing_loan.customerName,
+            'loanAmount': existing_loan.loanAmount,
+            'interestRate': existing_loan.interestRate,
+            'loanDuration': existing_loan.loanDuration,
+            'createdDate': existing_loan.createdDate,
+            'status': existing_loan.status,
+            'email': existing_loan.email,
+            'phone': existing_loan.phone,
+            'description': existing_loan.description
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating loan: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update loan contract")
+
+@app.delete("/loans/{contractNumber}")
+async def delete_loan(contractNumber: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Xóa hợp đồng vay"""
+    try:
+        # Find and delete contract
+        loan = db.query(LoanContractDB).filter(LoanContractDB.contractNumber == contractNumber).first()
+        if not loan:
+            raise HTTPException(status_code=404, detail="Loan contract not found")
+        
+        db.delete(loan)
+        db.commit()
+        
+        logger.info(f"Loan contract deleted: {contractNumber} by {current_user.username}")
+        
+        return {
+            'status': 'success',
+            'message': f'Contract {contractNumber} deleted successfully'
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting loan: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete loan contract")
 
 @app.get("/health")
 def health():

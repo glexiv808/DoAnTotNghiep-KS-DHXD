@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Hợp đồng Vay vốn - Hệ thống Đánh giá Tín dụng AI</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="bg-slate-100 min-h-screen font-sans text-slate-800">
+    <!-- Main Container -->
+    <div class="min-h-screen bg-gradient-to-b from-slate-100 to-slate-200">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg">
+            <div class="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2H4a1 1 0 110-2V4zm3 5a1 1 0 000 2h6a1 1 0 000-2H7z"></path></svg>
+                    <h1 class="text-3xl font-bold">Quản lý Hợp đồng Vay vốn</h1>
+                </div>
+                <a href="index.html" class="bg-white text-indigo-600 hover:bg-slate-100 px-6 py-2 rounded-lg font-bold shadow transition">
+                    ← Quay lại
+                </a>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Search & Filter Section -->
+            <div class="mb-8 bg-white p-6 rounded-xl shadow-lg border border-blue-100">
+                <h2 class="text-xl font-bold text-blue-900 mb-5 flex items-center gap-2">
+                    <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 108.414 17H5.586a1 1 0 11-1.414-1.414l2-2A1 1 0 016 15v-3.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd"></path></svg>
+                    Tìm kiếm & Lọc
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">🔍 Số hợp đồng / Tên khách hàng</label>
+                        <input type="text" id="searchLoanContract" placeholder="Nhập để tìm kiếm..."
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">📊 Trạng thái</label>
+                        <select id="filterLoanStatus" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white transition">
+                            <option value="">Tất cả trạng thái</option>
+                            <option value="active">Đang hoạt động</option>
+                            <option value="paid">Đã hoàn trả</option>
+                            <option value="default">Vỡ nợ</option>
+                            <option value="pending">Chờ xử lý</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">📅 Ngày tạo</label>
+                        <input type="date" id="filterLoanDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"/>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="searchAndFilterLoans()" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow transition flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path></svg>
+                            Tìm kiếm
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200 shadow-md hover:shadow-lg transition">
+                    <p class="text-sm text-blue-600 font-semibold mb-2">📊 Tổng hợp đồng</p>
+                    <p class="text-4xl font-bold text-blue-900" id="stat_total">0</p>
+                </div>
+                <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200 shadow-md hover:shadow-lg transition">
+                    <p class="text-sm text-green-600 font-semibold mb-2">✓ Đang hoạt động</p>
+                    <p class="text-4xl font-bold text-green-900" id="stat_active">0</p>
+                </div>
+                <div class="bg-gradient-to-br from-amber-50 to-amber-100 p-6 rounded-xl border border-amber-200 shadow-md hover:shadow-lg transition">
+                    <p class="text-sm text-amber-600 font-semibold mb-2">⏱ Chờ xử lý</p>
+                    <p class="text-4xl font-bold text-amber-900" id="stat_pending">0</p>
+                </div>
+                <div class="bg-gradient-to-br from-red-50 to-red-100 p-6 rounded-xl border border-red-200 shadow-md hover:shadow-lg transition">
+                    <p class="text-sm text-red-600 font-semibold mb-2">✕ Vỡ nợ</p>
+                    <p class="text-4xl font-bold text-red-900" id="stat_default">0</p>
+                </div>
+            </div>
+
+            <!-- Loan Contracts Table -->
+            <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                <div class="bg-gradient-to-r from-blue-800 to-blue-700 px-6 py-5">
+                    <h3 class="font-bold text-white text-lg flex items-center gap-2">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M2 4a2 2 0 012-2h6a2 2 0 012 2v1h3a1 1 0 010 2h-.05a1 1 0 01-.997 1.05A4.5 4.5 0 1013.545 5H11V4a1 1 0 10-2 0v1H8V4zm0 5a1 1 0 011-1h5a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V9zm6 5a1 1 0 100-2 1 1 0 000 2z"></path></svg>
+                        Danh sách Hợp đồng
+                    </h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 border-b-2 border-gray-200">
+                            <tr>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase">STT</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase">Số Hợp đồng</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase">Tên Khách hàng</th>
+                                <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase">Số tiền (USD)</th>
+                                <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase">Lãi suất (%)</th>
+                                <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase">Ngày tạo</th>
+                                <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase">Trạng thái</th>
+                                <th class="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="loanContractTableBody" class="bg-white">
+                            <tr class="text-center text-gray-400 border-b">
+                                <td colspan="8" class="py-12">Đang tải dữ liệu...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="mt-8 flex justify-between items-center flex-wrap gap-3">
+                <button onclick="openAddLoanModal()" class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-bold shadow transition flex items-center gap-2">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path></svg>
+                    Thêm Hợp đồng
+                </button>
+                <button onclick="exportLoanContracts()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold shadow transition flex items-center gap-2">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                    Xuất Excel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ADD/EDIT LOAN CONTRACT MODAL ==================== -->
+    <div id="loanModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-screen overflow-y-auto">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6 flex justify-between items-center sticky top-0">
+                <h3 class="text-2xl font-bold text-white" id="loanModalTitle">Thêm Hợp đồng Vay vốn</h3>
+                <button onclick="closeLoanModal()" class="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                </button>
+            </div>
+
+            <!-- Modal Form -->
+            <div class="p-8 space-y-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <!-- Contract Number -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Số Hợp đồng <span class="text-red-500">*</span></label>
+                        <input type="text" id="loanContractNumber" placeholder="Ví dụ: HĐ001"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                            disabled>
+                    </div>
+
+                    <!-- Customer Name -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Tên Khách hàng <span class="text-red-500">*</span></label>
+                        <input type="text" id="loanCustomerName" placeholder="Nhập tên khách hàng"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition">
+                    </div>
+
+                    <!-- Loan Amount -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Số tiền vay (USD) <span class="text-red-500">*</span></label>
+                        <input type="number" id="loanAmount" placeholder="Nhập số tiền"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                            min="0" step="1000000">
+                    </div>
+
+                    <!-- Interest Rate -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Lãi suất (%) <span class="text-red-500">*</span></label>
+                        <input type="number" id="loanInterestRate" placeholder="Nhập lãi suất"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                            min="0" max="30" step="0.1">
+                    </div>
+
+                    <!-- Loan Duration -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Thời hạn vay (tháng) <span class="text-red-500">*</span></label>
+                        <input type="number" id="loanDuration" placeholder="Nhập số tháng"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                            min="1" step="1">
+                    </div>
+
+                    <!-- Created Date -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Ngày tạo <span class="text-red-500">*</span></label>
+                        <input type="date" id="loanCreatedDate"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition">
+                    </div>
+
+                    <!-- Status -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Trạng thái <span class="text-red-500">*</span></label>
+                        <select id="loanStatus" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white transition">
+                            <option value="active">✓ Đang hoạt động</option>
+                            <option value="pending">⏱ Chờ xử lý</option>
+                            <option value="paid">✓ Đã thanh toán</option>
+                            <option value="default">✕ Vỡ nợ</option>
+                        </select>
+                    </div>
+
+                    <!-- Email -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Email khách hàng</label>
+                        <input type="email" id="loanEmail" placeholder="Nhập email"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition">
+                    </div>
+
+                    <!-- Phone -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Số điện thoại</label>
+                        <input type="tel" id="loanPhone" placeholder="Nhập số điện thoại"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition">
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">Ghi chú</label>
+                    <textarea id="loanDescription" placeholder="Nhập ghi chú thêm"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition h-24 resize-none"></textarea>
+                </div>
+
+                <!-- Error Message -->
+                <div id="loanModalError" class="hidden p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm"></div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3 justify-end pt-5 border-t border-gray-200">
+                    <button onclick="closeLoanModal()" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
+                        Hủy
+                    </button>
+                    <button onclick="saveLoanContract()" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-bold flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"></path></svg>
+                        Lưu Hợp đồng
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="script.js"></script>
+    <script>
+        // Initialize loan management when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            initializeLoanManagement();
+        });
+    </script>
+</body>
+
+</html>
