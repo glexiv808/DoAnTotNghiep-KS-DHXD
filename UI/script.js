@@ -63,6 +63,186 @@ const FIELD_LIST = [
 ];
 
 // =====================================================================
+// CREDIT SCORE CALCULATOR FUNCTIONS
+// =====================================================================
+function openCreditScoreCalculator() {
+    const modal = document.getElementById('creditScoreModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        // Reset form
+        document.getElementById('paymentRate').value = '';
+        document.getElementById('creditUtilization').value = '';
+        document.getElementById('creditMixScore').value = '';
+        document.getElementById('newCreditScore').value = '';
+        document.getElementById('calculatedScore').textContent = '-';
+        document.getElementById('creditScoreError').classList.add('hidden');
+        
+        // Lấy giá trị cb_person_cred_hist_length từ form cha
+        const credHistLength = document.getElementById('cb_person_cred_hist_length');
+        if (credHistLength && credHistLength.value) {
+            document.getElementById('creditLength').value = credHistLength.value;
+        } else {
+            document.getElementById('creditLength').value = '';
+        }
+        
+        // Re-check button state after opening modal
+        setupCreditScoreListeners();
+    }
+}
+
+function closeCreditScoreCalculator() {
+    const modal = document.getElementById('creditScoreModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+function calculateCreditScore() {
+    try {
+        const errorDiv = document.getElementById('creditScoreError');
+        if (!errorDiv) return; // Modal chưa tải
+        
+        errorDiv.classList.add('hidden');
+
+        // Get input values
+        const A = document.getElementById('paymentRate')?.value;
+        const B = document.getElementById('creditUtilization')?.value;
+        const C = document.getElementById('creditLength')?.value;
+        const D = document.getElementById('creditMixScore')?.value;
+        const E = document.getElementById('newCreditScore')?.value;
+
+        // Nếu chưa có input, không tính
+        if (!A && !B && !C && !D && !E) {
+            document.getElementById('calculatedScore').textContent = '0';
+            return;
+        }
+
+        // Parse values
+        const parsedA = parseFloat(A) || 0;
+        const parsedB = parseFloat(B) || 0;
+        const parsedC = parseFloat(C) || 0;
+        const parsedD = parseFloat(D) || 0;
+        const parsedE = parseFloat(E) || 0;
+
+        // Validate inputs if filled
+        if (A && (parsedA < 0 || parsedA > 100)) {
+            showCreditScoreError('Payment Rate phải từ 0-100');
+            return;
+        }
+        if (B && (parsedB < 0 || parsedB > 100)) {
+            showCreditScoreError('Credit Utilization phải từ 0-100');
+            return;
+        }
+        if (C && parsedC < 0) {
+            showCreditScoreError('Credit Length không thể âm');
+            return;
+        }
+        if (D && (parsedD < 0 || parsedD > 100)) {
+            showCreditScoreError('Credit Mix Score phải từ 0-100');
+            return;
+        }
+        if (E && (parsedE < 0 || parsedE > 100)) {
+            showCreditScoreError('New Credit Score phải từ 0-100');
+            return;
+        }
+
+        // Formula: 300 + (A*0.35*5.5) + ((100-B)*0.3*5.5) + (MIN(C/10*100, 100)*0.15*5.5) + (D*0.1*5.5) + (E*0.1*5.5)
+        const creditScore = 300 + 
+            (parsedA * 0.35 * 5.5) + 
+            ((100 - parsedB) * 0.3 * 5.5) + 
+            (Math.min((parsedC / 10 * 100), 100) * 0.15 * 5.5) + 
+            (parsedD * 0.1 * 5.5) + 
+            (parsedE * 0.1 * 5.5);
+
+        // Round to 2 decimal places
+        const roundedScore = Math.round(creditScore * 100) / 100;
+
+        // Display result (only integer part)
+        const resultElement = document.getElementById('calculatedScore');
+        if (resultElement) {
+            resultElement.textContent = Math.round(roundedScore);
+        }
+    } catch (error) {
+        console.error('Error calculating credit score:', error);
+        const errorDiv = document.getElementById('creditScoreError');
+        if (errorDiv) {
+            showCreditScoreError('Có lỗi xảy ra khi tính toán: ' + error.message);
+        }
+    }
+}
+
+function applyCreditScore() {
+    const score = document.getElementById('calculatedScore').textContent;
+    if (score === '' || score === '-' || score === '0') {
+        showCreditScoreError('Vui lòng tính toán credit score trước khi áp dụng');
+        return;
+    }
+
+    // Apply to credit_score input
+    document.getElementById('credit_score').value = score;
+    closeCreditScoreCalculator();
+}
+
+function showCreditScoreError(message) {
+    const errorDiv = document.getElementById('creditScoreError');
+    if (errorDiv) {
+        errorDiv.textContent = message;
+        errorDiv.classList.remove('hidden');
+    }
+}
+
+// Setup event listeners
+document.addEventListener('click', (e) => {
+    const modal = document.getElementById('creditScoreModal');
+    if (modal && e.target === modal) {
+        closeCreditScoreCalculator();
+    }
+});
+
+// Add real-time calculation listeners when document is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupCreditScoreListeners);
+} else {
+    setupCreditScoreListeners();
+}
+
+function setupCreditScoreListeners() {
+    const inputs = ['paymentRate', 'creditUtilization', 'creditLength', 'creditMixScore', 'newCreditScore'];
+    const calculateButton = document.getElementById('btnCreditScoreCalculate');
+    
+    function checkAllFieldsFilled() {
+        const allFilled = inputs.every(id => {
+            const input = document.getElementById(id);
+            return input && input.value.trim() !== '';
+        });
+        
+        if (calculateButton) {
+            if (allFilled) {
+                calculateButton.disabled = false;
+                calculateButton.classList.remove('bg-slate-300', 'cursor-not-allowed');
+                calculateButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            } else {
+                calculateButton.disabled = true;
+                calculateButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                calculateButton.classList.add('bg-slate-300', 'cursor-not-allowed');
+            }
+        }
+    }
+    
+    // Add event listeners to all inputs
+    inputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('input', checkAllFieldsFilled);
+            input.addEventListener('change', checkAllFieldsFilled);
+        }
+    });
+    
+    // Initial check
+    checkAllFieldsFilled();
+}
+
+// =====================================================================
 // 2. LOGIN/REGISTER MODAL MANAGEMENT
 // =====================================================================
 function initAuthUI() {

@@ -495,9 +495,14 @@
                         <div>
                             <label class="block font-medium text-gray-600 mb-1">Điểm tín dụng (Score)
                                 credit_score</label>
-                            <input type="number" id="credit_score"
-                                class="w-full border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="VD: 650" min="300" max="850">
+                            <div class="flex gap-2">
+                                <input type="number" id="credit_score"
+                                    class="flex-1 border rounded p-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                                    placeholder="VD: 650" min="300" max="850">
+                                <button type="button" onclick="openCreditScoreCalculator()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded font-bold transition" title="Tính toán credit score từ các chỉ số">
+                                    📊
+                                </button>
+                            </div>
                             <span id="credit_score_error" class="text-red-500 text-sm hidden">Điểm tín dụng phải từ 300 đến 850</span>
                         </div>
 
@@ -651,6 +656,105 @@
             </div>
         </section>
     </main>
+
+    <!-- ==================== CREDIT SCORE CALCULATOR MODAL ==================== -->
+    <div id="creditScoreModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-6">
+                <h3 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <!-- <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5.951-1.429 5.951 1.429a1 1 0 001.169-1.409l-7-14z"></path></svg> -->
+                    Tính toán Điểm Tín dụng
+                </h3>
+            </div>
+
+            <!-- Content -->
+            <div class="p-8 space-y-6">
+                <!-- <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+                    <p class="font-semibold mb-2"> Công thức tính:</p>
+                    <p class="font-mono text-xs break-words">Credit_Score = 300 + (A×0.35×5.5) + ((100-B)×0.3×5.5) + (MIN(C/10×100, 100)×0.15×5.5) + (D×0.1×5.5) + (E×0.1×5.5)</p>
+                </div> -->
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Payment Rate -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                             Payment Rate (%)
+                            <span class="text-xs text-gray-500">(Trạng thái thanh toán)</span>
+                        </label>
+                        <input type="number" id="paymentRate" placeholder="0-100" min="0" max="100" step="0.1"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition">
+                    </div>
+
+                    <!-- Credit Utilization -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                            Credit Utilization (%)
+                            <span class="text-xs text-gray-500">(Mức sử dụng hạn)</span>
+                        </label>
+                        <input type="number" id="creditUtilization" placeholder="0-100" min="0" max="100" step="0.1"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition">
+                    </div>
+
+                    <!-- Credit Length -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                            Credit Length (Years)
+                            <span class="text-xs text-gray-500">(Lịch sử tín dụng)</span>
+                        </label>
+                        <input type="number" id="creditLength" placeholder="0-100" min="0" step="0.1"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition">
+                    </div>
+
+                    <!-- Credit Mix Score -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                            Credit Mix Score (0-100)
+                            <span class="text-xs text-gray-500">(Đa dạng loại tín dụng)</span>
+                        </label>
+                        <input type="number" id="creditMixScore" placeholder="0-100" min="0" max="100" step="0.1"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition">
+                    </div>
+
+                    <!-- New Credit Score -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                            New Credit Score (0-100)
+                            <span class="text-xs text-gray-500">(Tín dụng mới gần đây)</span>
+                        </label>
+                        <input type="number" id="newCreditScore" placeholder="0-100" min="0" max="100" step="0.1"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition">
+                    </div>
+
+                    <!-- Result -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                            Điểm Tín dụng
+                            <span class="text-xs text-gray-500">(300-850)</span>
+                        </label>
+                        <div class="w-full px-4 py-2 border-2 border-indigo-500 rounded-lg bg-indigo-50 font-bold text-indigo-600 text-center">
+                            <span id="calculatedScore">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="creditScoreError" class="hidden p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm"></div>
+
+                <!-- Buttons -->
+                <div class="flex gap-3 justify-end pt-6 border-t border-gray-200">
+                    <button type="button" onclick="closeCreditScoreCalculator()" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium">
+                        Hủy
+                    </button>
+                    <button type="button" id="btnCreditScoreCalculate" onclick="calculateCreditScore()" disabled class="px-6 py-2 bg-slate-300 text-white rounded-lg transition font-bold cursor-not-allowed">
+                        Tính toán
+                    </button>
+                    <button type="button" onclick="applyCreditScore()" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-bold">
+                        Áp dụng
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="script.js"></script>
 </body>

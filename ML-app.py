@@ -12,7 +12,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 import jwt
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -103,6 +103,7 @@ class LoanContractDB(Base):
     __tablename__ = "loan_contracts"
     
     contractNumber = Column(String, primary_key=True, index=True, nullable=False)
+    username = Column(String, index=True, nullable=False)  # Lưu user tạo hợp đồng
     customerName = Column(String, nullable=False)
     loanAmount = Column(String, nullable=False)
     interestRate = Column(String, nullable=False)
@@ -117,6 +118,43 @@ class LoanContractDB(Base):
 
 # Tạo bảng
 Base.metadata.create_all(bind=engine)
+
+# Migration: Thêm cột username nếu chưa tồn tại
+def add_username_column_if_not_exists():
+    """Thêm cột username vào bảng loan_contracts nếu chưa tồn tại"""
+    try:
+        # Kiểm tra xem bảng có tồn tại không
+        inspector_obj = inspect(engine)
+        tables = inspector_obj.get_table_names()
+        
+        if 'loan_contracts' not in tables:
+            logger.info("Bảng loan_contracts chưa tồn tại, không cần migration")
+            return
+        
+        columns = inspector_obj.get_columns('loan_contracts')
+        column_names = [col['name'] for col in columns]
+        
+        if 'username' not in column_names:
+            with engine.connect() as conn:
+                if 'sqlite' in DATABASE_URL:
+                    # SQLite không hỗ trợ ALTER COLUMN, phải dùng cách khác
+                    conn.execute(text(
+                        'ALTER TABLE loan_contracts ADD COLUMN username VARCHAR(255) DEFAULT "unknown"'
+                    ))
+                else:
+                    # PostgreSQL hoặc databases khác
+                    conn.execute(text(
+                        'ALTER TABLE loan_contracts ADD COLUMN username VARCHAR(255) DEFAULT "unknown"'
+                    ))
+                conn.commit()
+                logger.info("Thêm cột username vào bảng loan_contracts thành công")
+        else:
+            logger.info("Cột username đã tồn tại")
+    except Exception as e:
+        logger.warning(f"Không thể kiểm tra/thêm cột username: {e}")
+
+# Chạy migration khi app khởi động
+add_username_column_if_not_exists()
 
 # ==================== PYDANTIC MODELS ====================
 class UserCreate(BaseModel):
@@ -1035,9 +1073,13 @@ def root():
 # ==================== LOAN CONTRACT MANAGEMENT ENDPOINTS ====================
 @app.get("/loans")
 async def get_all_loans(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Lấy tất cả hợp đồng vay"""
+    """Lấy tất cả hợp đồng vay của user hiện tại"""
     try:
-        loans = db.query(LoanContractDB).all()
+        # Chỉ lấy hợp đồng của user hiện tại hoặc những hợp đồng được tạo trước khi có tính năng user
+        loans = db.query(LoanContractDB).filter(
+            (LoanContractDB.username == current_user.username) | 
+            (LoanContractDB.username == "unknown")
+        ).all()
         loans_data = []
         for loan in loans:
             loans_data.append({
@@ -1059,11 +1101,14 @@ async def get_all_loans(current_user: User = Depends(get_current_user), db: Sess
 
 @app.get("/loans/{contractNumber}")
 async def get_loan(contractNumber: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Lấy chi tiết một hợp đồng"""
+    """Lấy chi tiết một hợp đồng (chỉ của user hiện tại)"""
     try:
-        loan = db.query(LoanContractDB).filter(LoanContractDB.contractNumber == contractNumber).first()
+        loan = db.query(LoanContractDB).filter(
+            LoanContractDB.contractNumber == contractNumber,
+            LoanContractDB.username == current_user.username
+        ).first()
         if not loan:
-            raise HTTPException(status_code=404, detail="Loan contract not found")
+            raise HTTPException(status_code=404, detail="Loan contract not found or you don't have permission")
         
         return {
             'contractNumber': loan.contractNumber,
@@ -1085,7 +1130,7 @@ async def get_loan(contractNumber: str, current_user: User = Depends(get_current
 
 @app.post("/loans")
 async def create_loan(loan: LoanContract, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Tạo hợp đồng vay mới"""
+    """Tạo hợp đồng vay mới (lưu user tạo)"""
     try:
         # Check if contract already exists
         existing = db.query(LoanContractDB).filter(LoanContractDB.contractNumber == loan.contractNumber).first()
@@ -1095,6 +1140,7 @@ async def create_loan(loan: LoanContract, current_user: User = Depends(get_curre
         # Create new loan contract
         new_loan = LoanContractDB(
             contractNumber=loan.contractNumber,
+            username=current_user.username,  # Lưu user tạo hợp đồng
             customerName=loan.customerName,
             loanAmount=str(loan.loanAmount),
             interestRate=str(loan.interestRate),
@@ -1133,12 +1179,15 @@ async def create_loan(loan: LoanContract, current_user: User = Depends(get_curre
 
 @app.put("/loans/{contractNumber}")
 async def update_loan(contractNumber: str, loan: LoanContract, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Cập nhật hợp đồng vay"""
+    """Cập nhật hợp đồng vay (chỉ user sở hữu mới có thể sửa)"""
     try:
-        # Find existing contract
-        existing_loan = db.query(LoanContractDB).filter(LoanContractDB.contractNumber == contractNumber).first()
+        # Find existing contract - chỉ lấy của user hiện tại
+        existing_loan = db.query(LoanContractDB).filter(
+            LoanContractDB.contractNumber == contractNumber,
+            LoanContractDB.username == current_user.username
+        ).first()
         if not existing_loan:
-            raise HTTPException(status_code=404, detail="Loan contract not found")
+            raise HTTPException(status_code=404, detail="Loan contract not found or you don't have permission")
         
         # Update fields
         existing_loan.customerName = loan.customerName
@@ -1178,12 +1227,15 @@ async def update_loan(contractNumber: str, loan: LoanContract, current_user: Use
 
 @app.delete("/loans/{contractNumber}")
 async def delete_loan(contractNumber: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Xóa hợp đồng vay"""
+    """Xóa hợp đồng vay (chỉ user sở hữu mới có thể xóa)"""
     try:
-        # Find and delete contract
-        loan = db.query(LoanContractDB).filter(LoanContractDB.contractNumber == contractNumber).first()
+        # Find and delete contract - chỉ lấy của user hiện tại
+        loan = db.query(LoanContractDB).filter(
+            LoanContractDB.contractNumber == contractNumber,
+            LoanContractDB.username == current_user.username
+        ).first()
         if not loan:
-            raise HTTPException(status_code=404, detail="Loan contract not found")
+            raise HTTPException(status_code=404, detail="Loan contract not found or you don't have permission")
         
         db.delete(loan)
         db.commit()
