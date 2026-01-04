@@ -10,6 +10,15 @@
     100% { transform: rotate(360deg); }
 }
 
+/* Admin Link Visibility */
+.admin-link-hidden {
+    display: none !important;
+}
+
+.admin-link-hidden.admin-visible {
+    display: flex !important;
+}
+
 /* Tùy chỉnh thanh cuộn (Custom Scrollbar) */
 .custom-scrollbar::-webkit-scrollbar {
     width: 8px;

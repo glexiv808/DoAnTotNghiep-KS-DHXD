@@ -247,12 +247,11 @@ function setupCreditScoreListeners() {
 // =====================================================================
 function initAuthUI() {
     if (isAuthenticated()) {
-        document.getElementById('loginModal').classList.add('hidden');
         updateUserInfo();
         setupLogoutListener();  // Gắn logout listener khi đã xác thực
     } else {
-        document.getElementById('loginModal').classList.remove('hidden');
-        setupAuthListeners();
+        // Redirect to login page if not authenticated
+        window.location.href = 'login.html';
     }
 }
 
@@ -270,6 +269,22 @@ function updateUserInfo() {
         document.getElementById('currentUser').textContent = data.username;
         document.getElementById('userInfo').classList.remove('hidden');
         document.getElementById('authStatus').classList.add('hidden');
+        
+        // Lưu role vào localStorage
+        localStorage.setItem('user_role', data.role);
+        
+        // Quản lý hiển thị link quản lý tài khoản dựa trên role
+        const adminLink = document.getElementById('adminLink');
+        if (adminLink) {
+            if (data.role === 'admin') {
+                // Nếu là admin, hiển thị link quản lý tài khoản
+                adminLink.classList.add('admin-visible');
+            } else {
+                // Nếu không phải admin, ẩn link quản lý tài khoản
+                adminLink.classList.remove('admin-visible');
+            }
+        }
+        
         setupLogoutListener();  // Gắn logout listener sau khi cập nhật user info
     })
     .catch(() => {
@@ -309,159 +324,6 @@ function setupLogoutListener() {
             clearToken();
             initAuthUI();
         }
-    });
-}
-
-function setupAuthListeners() {
-    // Tab switching
-    document.getElementById('tabLogin').addEventListener('click', () => {
-        document.getElementById('loginForm').classList.remove('hidden');
-        document.getElementById('registerForm').classList.add('hidden');
-        document.getElementById('tabLogin').classList.add('border-indigo-600', 'bg-indigo-50');
-        document.getElementById('tabLogin').classList.remove('border-transparent');
-        document.getElementById('tabRegister').classList.remove('border-indigo-600', 'bg-indigo-50');
-        document.getElementById('tabRegister').classList.add('border-transparent');
-    });
-
-    document.getElementById('tabRegister').addEventListener('click', () => {
-        document.getElementById('loginForm').classList.add('hidden');
-        document.getElementById('registerForm').classList.remove('hidden');
-        document.getElementById('tabRegister').classList.add('border-indigo-600', 'bg-indigo-50');
-        document.getElementById('tabRegister').classList.remove('border-transparent');
-        document.getElementById('tabLogin').classList.remove('border-indigo-600', 'bg-indigo-50');
-        document.getElementById('tabLogin').classList.add('border-transparent');
-    });
-
-    // Login handler
-    document.getElementById('btnLogin').addEventListener('click', async (e) => {
-        e.preventDefault();
-        const username = document.getElementById('loginUsername').value.trim();
-        const password = document.getElementById('loginPassword').value;
-        const errorDiv = document.getElementById('loginError');
-        const btn = document.getElementById('btnLogin');
-        const spinner = document.getElementById('spinnerLogin');
-
-        if (!username || !password) {
-            errorDiv.classList.remove('hidden');
-            errorDiv.textContent = 'Vui lòng nhập tên đăng nhập và mật khẩu';
-            return;
-        }
-
-        btn.disabled = true;
-        spinner.classList.remove('hidden');
-
-        try {
-            const response = await fetch(API_LOGIN, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Đăng nhập thất bại');
-            }
-
-            const data = await response.json();
-            setToken(data.access_token);
-            
-            errorDiv.classList.add('hidden');
-            document.getElementById('loginUsername').value = '';
-            document.getElementById('loginPassword').value = '';
-            
-            initAuthUI();
-        } catch (err) {
-            errorDiv.classList.remove('hidden');
-            errorDiv.textContent = err.message;
-        } finally {
-            btn.disabled = false;
-            spinner.classList.add('hidden');
-        }
-    });
-
-    // Register handler
-    document.getElementById('btnRegister').addEventListener('click', async (e) => {
-        e.preventDefault();
-        const username = document.getElementById('regUsername').value.trim();
-        const email = document.getElementById('regEmail').value.trim();
-        const password = document.getElementById('regPassword').value;
-        const fullName = document.getElementById('regFullName').value.trim();
-        const errorDiv = document.getElementById('registerError');
-        const btn = document.getElementById('btnRegister');
-        const spinner = document.getElementById('spinnerRegister');
-
-        if (!username || !email || !password) {
-            errorDiv.classList.remove('hidden');
-            errorDiv.textContent = 'Vui lòng nhập tên đăng nhập, email và mật khẩu';
-            return;
-        }
-
-        if (password.length < 6) {
-            errorDiv.classList.remove('hidden');
-            errorDiv.textContent = 'Mật khẩu phải có ít nhất 6 ký tự';
-            return;
-        }
-
-        btn.disabled = true;
-        spinner.classList.remove('hidden');
-
-        try {
-            const response = await fetch(API_REGISTER, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    username,
-                    email,
-                    password,
-                    full_name: fullName || null
-                })
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Đăng ký thất bại');
-            }
-
-            errorDiv.classList.add('hidden');
-            
-            // Auto login after registration
-            const loginResponse = await fetch(API_LOGIN, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            if (loginResponse.ok) {
-                const loginData = await loginResponse.json();
-                setToken(loginData.access_token);
-                
-                document.getElementById('regUsername').value = '';
-                document.getElementById('regEmail').value = '';
-                document.getElementById('regPassword').value = '';
-                document.getElementById('regFullName').value = '';
-                
-                initAuthUI();
-            }
-        } catch (err) {
-            errorDiv.classList.remove('hidden');
-            errorDiv.textContent = err.message;
-        } finally {
-            btn.disabled = false;
-            spinner.classList.add('hidden');
-        }
-    });
-
-    // Enter key for inputs
-    ['loginUsername', 'loginPassword'].forEach(id => {
-        document.getElementById(id).addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') document.getElementById('btnLogin').click();
-        });
-    });
-
-    ['regUsername', 'regEmail', 'regPassword', 'regFullName'].forEach(id => {
-        document.getElementById(id).addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') document.getElementById('btnRegister').click();
-        });
     });
 }
 

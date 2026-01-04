@@ -57,6 +57,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
+    role = Column(String, default="user", nullable=False)  # "user" hoặc "admin"
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
 
@@ -153,8 +154,40 @@ def add_username_column_if_not_exists():
     except Exception as e:
         logger.warning(f"Không thể kiểm tra/thêm cột username: {e}")
 
+# Migration: Thêm cột role nếu chưa tồn tại
+def add_role_column_if_not_exists():
+    """Thêm cột role vào bảng users nếu chưa tồn tại"""
+    try:
+        inspector_obj = inspect(engine)
+        tables = inspector_obj.get_table_names()
+        
+        if 'users' not in tables:
+            logger.info("Bảng users chưa tồn tại, không cần migration")
+            return
+        
+        columns = inspector_obj.get_columns('users')
+        column_names = [col['name'] for col in columns]
+        
+        if 'role' not in column_names:
+            with engine.connect() as conn:
+                if 'sqlite' in DATABASE_URL:
+                    conn.execute(text(
+                        'ALTER TABLE users ADD COLUMN role VARCHAR(255) DEFAULT "user"'
+                    ))
+                else:
+                    conn.execute(text(
+                        'ALTER TABLE users ADD COLUMN role VARCHAR(255) DEFAULT "user"'
+                    ))
+                conn.commit()
+                logger.info("Thêm cột role vào bảng users thành công")
+        else:
+            logger.info("Cột role đã tồn tại")
+    except Exception as e:
+        logger.warning(f"Không thể kiểm tra/thêm cột role: {e}")
+
 # Chạy migration khi app khởi động
 add_username_column_if_not_exists()
+add_role_column_if_not_exists()
 
 # ==================== PYDANTIC MODELS ====================
 class UserCreate(BaseModel):
@@ -177,7 +210,28 @@ class UserResponse(BaseModel):
     email: str
     full_name: Optional[str]
     is_active: bool
+    role: str
     created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    is_active: Optional[bool] = None
+    role: Optional[str] = None
+
+class UserDetailResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    full_name: Optional[str]
+    is_active: bool
+    role: str
+    created_at: datetime
+    last_login: Optional[datetime]
+    contracts_count: int = 0
     
     class Config:
         from_attributes = True
@@ -352,6 +406,15 @@ def get_current_user(
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return user
+
+def get_admin_user(current_user: User = Depends(get_current_user)):
+    """Kiểm tra xem user hiện tại có phải admin không"""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can access this resource"
+        )
+    return current_user
 
 # ==================== OPENTELEMETRY SETUP ====================
 resource = Resource.create({SERVICE_NAME: "ml-prediction-service"})
@@ -568,7 +631,8 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         username=user.username,
         email=user.email,
         hashed_password=hashed_password,
-        full_name=user.full_name
+        full_name=user.full_name,
+        role="user"  # Mặc định role là 'user'
     )
     
     db.add(db_user)
@@ -1252,6 +1316,325 @@ async def delete_loan(contractNumber: str, current_user: User = Depends(get_curr
         logger.error(f"Error deleting loan: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete loan contract")
+
+# ==================== ADMIN USER MANAGEMENT ENDPOINTS ====================
+@app.get("/admin/users")
+async def get_all_users(
+    page: int = 1,
+    per_page: int = 10,
+    search: str = "",
+    admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Lấy danh sách tất cả người dùng (chỉ admin)"""
+    try:
+        offset = (page - 1) * per_page
+        query = db.query(User)
+        if search:
+            query = query.filter(
+                (User.username.ilike(f"%{search}%")) |
+                (User.email.ilike(f"%{search}%")) |
+                (User.full_name.ilike(f"%{search}%"))
+            )
+        total = query.count()
+        users = query.order_by(User.created_at.desc()).offset(offset).limit(per_page).all()
+        
+        users_data = []
+        for user in users:
+            contract_count = db.query(LoanContractDB).filter(
+                LoanContractDB.username == user.username
+            ).count()
+            users_data.append({
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'full_name': user.full_name,
+                'is_active': user.is_active,
+                'role': user.role,
+                'created_at': user.created_at.isoformat(),
+                'last_login': user.last_login.isoformat() if user.last_login else None,
+                'contracts_count': contract_count
+            })
+        
+        logger.info(f"Admin {admin.username} retrieved user list")
+        return {
+            'total': total,
+            'page': page,
+            'per_page': per_page,
+            'pages': (total + per_page - 1) // per_page,
+            'users': users_data
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving users: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve users")
+
+@app.get("/admin/users/{user_id}")
+async def get_user_detail(
+    user_id: int,
+    admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Lấy chi tiết một người dùng và hợp đồng của họ (chỉ admin)"""
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        contracts = db.query(LoanContractDB).filter(
+            LoanContractDB.username == user.username
+        ).all()
+        
+        contracts_data = []
+        for contract in contracts:
+            contracts_data.append({
+                'contractNumber': contract.contractNumber,
+                'customerName': contract.customerName,
+                'loanAmount': contract.loanAmount,
+                'interestRate': contract.interestRate,
+                'loanDuration': contract.loanDuration,
+                'createdDate': contract.createdDate,
+                'status': contract.status,
+                'email': contract.email,
+                'phone': contract.phone,
+                'description': contract.description,
+                'created_at': contract.created_at.isoformat()
+            })
+        
+        logger.info(f"Admin {admin.username} retrieved details for user {user.username}")
+        return {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'full_name': user.full_name,
+            'is_active': user.is_active,
+            'role': user.role,
+            'created_at': user.created_at.isoformat(),
+            'last_login': user.last_login.isoformat() if user.last_login else None,
+            'contracts_count': len(contracts_data),
+            'contracts': contracts_data
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving user details: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve user details")
+
+@app.put("/admin/users/{user_id}")
+async def update_user(
+    user_id: int,
+    user_data: UserUpdate,
+    admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Cập nhật thông tin người dùng (chỉ admin)"""
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        if admin.id == user_id and user_data.role and user_data.role != "admin":
+            raise HTTPException(status_code=400, detail="You cannot change your own role")
+        
+        if user_data.email:
+            existing = db.query(User).filter(
+                User.email == user_data.email,
+                User.id != user_id
+            ).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Email already registered")
+            user.email = user_data.email
+        
+        if user_data.full_name is not None:
+            user.full_name = user_data.full_name
+        if user_data.is_active is not None:
+            user.is_active = user_data.is_active
+        if user_data.role and user_data.role in ["user", "admin"]:
+            user.role = user_data.role
+        
+        db.commit()
+        db.refresh(user)
+        logger.info(f"Admin {admin.username} updated user {user.username}")
+        
+        return {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'full_name': user.full_name,
+            'is_active': user.is_active,
+            'role': user.role,
+            'created_at': user.created_at.isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating user: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update user")
+
+@app.delete("/admin/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Xóa người dùng (chỉ admin)"""
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        if admin.id == user_id:
+            raise HTTPException(status_code=400, detail="You cannot delete your own account")
+        
+        db.query(LoanContractDB).filter(
+            LoanContractDB.username == user.username
+        ).delete()
+        
+        db.delete(user)
+        db.commit()
+        logger.info(f"Admin {admin.username} deleted user {user.username}")
+        
+        return {
+            'status': 'success',
+            'message': f'User {user.username} deleted successfully'
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete user")
+
+@app.post("/admin/users")
+async def create_user_by_admin(
+    user: UserCreate,
+    role: str = "user",
+    admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Tạo user mới bởi admin"""
+    try:
+        db_user = db.query(User).filter(User.username == user.username).first()
+        if db_user:
+            raise HTTPException(status_code=400, detail="Username already registered")
+        
+        db_user = db.query(User).filter(User.email == user.email).first()
+        if db_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        if role not in ["user", "admin"]:
+            role = "user"
+        
+        hashed_password = get_password_hash(user.password)
+        db_user = User(
+            username=user.username,
+            email=user.email,
+            hashed_password=hashed_password,
+            full_name=user.full_name,
+            role=role
+        )
+        
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        
+        logger.info(f"Admin {admin.username} created new user {user.username} with role {role}")
+        return {
+            'id': db_user.id,
+            'username': db_user.username,
+            'email': db_user.email,
+            'full_name': db_user.full_name,
+            'is_active': db_user.is_active,
+            'role': db_user.role,
+            'created_at': db_user.created_at.isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create user")
+
+@app.get("/admin/stats")
+async def get_admin_stats(
+    admin: User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Lấy thống kê hệ thống (chỉ admin)"""
+    try:
+        total_users = db.query(User).count()
+        admin_users = db.query(User).filter(User.role == "admin").count()
+        regular_users = db.query(User).filter(User.role == "user").count()
+        active_users = db.query(User).filter(User.is_active == True).count()
+        total_contracts = db.query(LoanContractDB).count()
+        
+        logger.info(f"Admin {admin.username} retrieved system stats")
+        return {
+            'total_users': total_users,
+            'admin_users': admin_users,
+            'regular_users': regular_users,
+            'active_users': active_users,
+            'total_contracts': total_contracts
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve statistics")
+
+@app.post("/create-first-admin")
+async def create_first_admin(
+    user: UserCreate,
+    db: Session = Depends(get_db)
+):
+    """Tạo tài khoản admin đầu tiên (chỉ hoạt động khi chưa có admin nào)"""
+    try:
+        # Kiểm tra có admin nào không
+        existing_admin = db.query(User).filter(User.role == "admin").first()
+        if existing_admin:
+            raise HTTPException(
+                status_code=400,
+                detail="Admin account already exists. Use /admin/users endpoint to create more admins."
+            )
+        
+        # Kiểm tra username đã tồn tại
+        db_user = db.query(User).filter(User.username == user.username).first()
+        if db_user:
+            raise HTTPException(status_code=400, detail="Username already registered")
+        
+        # Kiểm tra email đã tồn tại
+        db_user = db.query(User).filter(User.email == user.email).first()
+        if db_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Tạo user mới với role admin
+        hashed_password = get_password_hash(user.password)
+        db_user = User(
+            username=user.username,
+            email=user.email,
+            hashed_password=hashed_password,
+            full_name=user.full_name,
+            role="admin"  # Admin đầu tiên
+        )
+        
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        
+        logger.info(f"First admin account created: {user.username}")
+        
+        return {
+            'status': 'success',
+            'message': f'Admin account "{user.username}" created successfully',
+            'id': db_user.id,
+            'username': db_user.username,
+            'email': db_user.email,
+            'role': db_user.role
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating first admin: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create admin account")
 
 @app.get("/health")
 def health():
