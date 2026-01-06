@@ -104,7 +104,7 @@ class LoanContractDB(Base):
     __tablename__ = "loan_contracts"
     
     contractNumber = Column(String, primary_key=True, index=True, nullable=False)
-    username = Column(String, index=True, nullable=False)  # Lưu user tạo hợp đồng
+    username = Column(String, index=True, nullable=False)  # Chủ sở hữu/người quản lý hợp đồng
     customerName = Column(String, nullable=False)
     loanAmount = Column(String, nullable=False)
     interestRate = Column(String, nullable=False)
@@ -116,6 +116,18 @@ class LoanContractDB(Base):
     description = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# Notification Model - để thông báo cho người phụ trách khi admin chỉnh sửa
+class NotificationDB(Base):
+    __tablename__ = "notifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, index=True, nullable=False)  # Người nhận notification
+    contract_number = Column(String, index=True, nullable=False)  # Hợp đồng bị chỉnh sửa
+    edited_by = Column(String, nullable=False)  # Admin người chỉnh sửa
+    changes = Column(String, nullable=False)  # JSON string chứa chi tiết thay đổi
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 # Tạo bảng
 Base.metadata.create_all(bind=engine)
@@ -1137,16 +1149,24 @@ def root():
 # ==================== LOAN CONTRACT MANAGEMENT ENDPOINTS ====================
 @app.get("/loans")
 async def get_all_loans(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Lấy tất cả hợp đồng vay của user hiện tại"""
+    """Lấy tất cả hợp đồng vay. 
+    - Nếu user là admin: lấy tất cả hợp đồng của tất cả user, bao gồm người tạo
+    - Nếu user không phải admin: chỉ lấy hợp đồng của user hiện tại hoặc những hợp đồng được tạo trước khi có tính năng user
+    """
     try:
-        # Chỉ lấy hợp đồng của user hiện tại hoặc những hợp đồng được tạo trước khi có tính năng user
-        loans = db.query(LoanContractDB).filter(
-            (LoanContractDB.username == current_user.username) | 
-            (LoanContractDB.username == "unknown")
-        ).all()
+        if current_user.role == "admin":
+            # Admin xem tất cả hợp đồng
+            loans = db.query(LoanContractDB).all()
+        else:
+            # User thường chỉ xem hợp đồng của chính mình
+            loans = db.query(LoanContractDB).filter(
+                (LoanContractDB.username == current_user.username) | 
+                (LoanContractDB.username == "unknown")
+            ).all()
+        
         loans_data = []
         for loan in loans:
-            loans_data.append({
+            loan_info = {
                 'contractNumber': loan.contractNumber,
                 'customerName': loan.customerName,
                 'loanAmount': loan.loanAmount,
@@ -1156,23 +1176,37 @@ async def get_all_loans(current_user: User = Depends(get_current_user), db: Sess
                 'status': loan.status,
                 'email': loan.email,
                 'phone': loan.phone,
-                'description': loan.description
-            })
-        return {'loans': loans_data}
+                'description': loan.description,
+                'username': loan.username
+            }
+            # Thêm tên chủ sở hữu nếu user là admin
+            if current_user.role == "admin":
+                loan_info['createdBy'] = loan.username if loan.username != "unknown" else "Hệ thống"
+            
+            loans_data.append(loan_info)
+        
+        return {
+            'loans': loans_data,
+            'userRole': current_user.role
+        }
     except Exception as e:
         logger.error(f"Error fetching loans: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch loans")
 
 @app.get("/loans/{contractNumber}")
 async def get_loan(contractNumber: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Lấy chi tiết một hợp đồng (chỉ của user hiện tại)"""
+    """Lấy chi tiết một hợp đồng. Admin xem được hợp đồng của bất kỳ user nào, user thường chỉ xem của chính mình"""
     try:
         loan = db.query(LoanContractDB).filter(
-            LoanContractDB.contractNumber == contractNumber,
-            LoanContractDB.username == current_user.username
+            LoanContractDB.contractNumber == contractNumber
         ).first()
+        
+        # Kiểm tra quyền truy cập
         if not loan:
-            raise HTTPException(status_code=404, detail="Loan contract not found or you don't have permission")
+            raise HTTPException(status_code=404, detail="Loan contract not found")
+        
+        if current_user.role != "admin" and loan.username != current_user.username:
+            raise HTTPException(status_code=403, detail="You don't have permission to view this contract")
         
         return {
             'contractNumber': loan.contractNumber,
@@ -1184,7 +1218,8 @@ async def get_loan(contractNumber: str, current_user: User = Depends(get_current
             'status': loan.status,
             'email': loan.email,
             'phone': loan.phone,
-            'description': loan.description
+            'description': loan.description,
+            'username': loan.username
         }
     except HTTPException:
         raise
@@ -1204,7 +1239,7 @@ async def create_loan(loan: LoanContract, current_user: User = Depends(get_curre
         # Create new loan contract
         new_loan = LoanContractDB(
             contractNumber=loan.contractNumber,
-            username=current_user.username,  # Lưu user tạo hợp đồng
+            username=current_user.username,  # Chủ sở hữu hợp đồng
             customerName=loan.customerName,
             loanAmount=str(loan.loanAmount),
             interestRate=str(loan.interestRate),
@@ -1243,15 +1278,40 @@ async def create_loan(loan: LoanContract, current_user: User = Depends(get_curre
 
 @app.put("/loans/{contractNumber}")
 async def update_loan(contractNumber: str, loan: LoanContract, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Cập nhật hợp đồng vay (chỉ user sở hữu mới có thể sửa)"""
+    """Cập nhật hợp đồng vay. Admin có thể sửa bất kỳ hợp đồng nào, user thường chỉ sửa của chính mình"""
     try:
-        # Find existing contract - chỉ lấy của user hiện tại
+        # Find existing contract
         existing_loan = db.query(LoanContractDB).filter(
-            LoanContractDB.contractNumber == contractNumber,
-            LoanContractDB.username == current_user.username
+            LoanContractDB.contractNumber == contractNumber
         ).first()
+        
         if not existing_loan:
-            raise HTTPException(status_code=404, detail="Loan contract not found or you don't have permission")
+            raise HTTPException(status_code=404, detail="Loan contract not found")
+        
+        # Kiểm tra quyền truy cập
+        if current_user.role != "admin" and existing_loan.username != current_user.username:
+            raise HTTPException(status_code=403, detail="You don't have permission to update this contract")
+        
+        # Track changes
+        changes = {}
+        if existing_loan.customerName != loan.customerName:
+            changes['customerName'] = {'old': existing_loan.customerName, 'new': loan.customerName}
+        if existing_loan.loanAmount != str(loan.loanAmount):
+            changes['loanAmount'] = {'old': existing_loan.loanAmount, 'new': str(loan.loanAmount)}
+        if existing_loan.interestRate != str(loan.interestRate):
+            changes['interestRate'] = {'old': existing_loan.interestRate, 'new': str(loan.interestRate)}
+        if existing_loan.loanDuration != str(loan.loanDuration):
+            changes['loanDuration'] = {'old': existing_loan.loanDuration, 'new': str(loan.loanDuration)}
+        if existing_loan.createdDate != loan.createdDate:
+            changes['createdDate'] = {'old': existing_loan.createdDate, 'new': loan.createdDate}
+        if existing_loan.status != loan.status:
+            changes['status'] = {'old': existing_loan.status, 'new': loan.status}
+        if existing_loan.email != loan.email:
+            changes['email'] = {'old': existing_loan.email, 'new': loan.email}
+        if existing_loan.phone != loan.phone:
+            changes['phone'] = {'old': existing_loan.phone, 'new': loan.phone}
+        if existing_loan.description != loan.description:
+            changes['description'] = {'old': existing_loan.description, 'new': loan.description}
         
         # Update fields
         existing_loan.customerName = loan.customerName
@@ -1268,6 +1328,19 @@ async def update_loan(contractNumber: str, loan: LoanContract, current_user: Use
         db.commit()
         db.refresh(existing_loan)
         
+        # Nếu admin chỉnh sửa và có thay đổi, tạo notification cho người phụ trách
+        if current_user.role == "admin" and changes and existing_loan.username != current_user.username:
+            notification = NotificationDB(
+                username=existing_loan.username,  # Người phụ trách hợp đồng
+                contract_number=contractNumber,
+                edited_by=current_user.username,  # Admin người chỉnh sửa
+                changes=json.dumps(changes),
+                is_read=False
+            )
+            db.add(notification)
+            db.commit()
+            logger.info(f"Notification created for {existing_loan.username} - Contract {contractNumber} updated by {current_user.username}")
+        
         logger.info(f"Loan contract updated: {contractNumber} by {current_user.username}")
         
         return {
@@ -1280,7 +1353,8 @@ async def update_loan(contractNumber: str, loan: LoanContract, current_user: Use
             'status': existing_loan.status,
             'email': existing_loan.email,
             'phone': existing_loan.phone,
-            'description': existing_loan.description
+            'description': existing_loan.description,
+            'username': existing_loan.username
         }
     except HTTPException:
         raise
@@ -1316,6 +1390,53 @@ async def delete_loan(contractNumber: str, current_user: User = Depends(get_curr
         logger.error(f"Error deleting loan: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete loan contract")
+
+@app.put("/loans/{contractNumber}/owner")
+async def update_loan_owner(contractNumber: str, request_data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Cập nhật chủ sở hữu hợp đồng (chỉ admin)"""
+    try:
+        # Kiểm tra quyền admin
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="Only admin can change contract owner")
+        
+        # Tìm hợp đồng
+        loan = db.query(LoanContractDB).filter(
+            LoanContractDB.contractNumber == contractNumber
+        ).first()
+        
+        if not loan:
+            raise HTTPException(status_code=404, detail="Loan contract not found")
+        
+        # Lấy chủ sở hữu mới từ request
+        new_owner = request_data.get("username")
+        if not new_owner:
+            raise HTTPException(status_code=400, detail="username is required")
+        
+        # Kiểm tra xem người dùng mới tồn tại không
+        user_exists = db.query(User).filter(User.username == new_owner).first()
+        if not user_exists:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Cập nhật chủ sở hữu
+        loan.username = new_owner
+        loan.updated_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(loan)
+        
+        logger.info(f"Loan contract owner updated for {contractNumber} to {new_owner} by admin {current_user.username}")
+        
+        return {
+            'status': 'success',
+            'contractNumber': loan.contractNumber,
+            'username': loan.username
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating loan owner: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update loan owner")
 
 # ==================== ADMIN USER MANAGEMENT ENDPOINTS ====================
 @app.get("/admin/users")
@@ -1635,6 +1756,84 @@ async def create_first_admin(
         logger.error(f"Error creating first admin: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create admin account")
+
+# ==================== NOTIFICATION ENDPOINTS ====================
+
+@app.get("/notifications")
+async def get_notifications(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Lấy danh sách thông báo cho người dùng hiện tại"""
+    try:
+        notifications = db.query(NotificationDB).filter(
+            NotificationDB.username == current_user.username
+        ).order_by(NotificationDB.created_at.desc()).all()
+        
+        notifications_data = []
+        for notif in notifications:
+            changes = json.loads(notif.changes)
+            notifications_data.append({
+                'id': notif.id,
+                'contract_number': notif.contract_number,
+                'edited_by': notif.edited_by,
+                'changes': changes,
+                'is_read': notif.is_read,
+                'created_at': notif.created_at.isoformat()
+            })
+        
+        # Get unread count
+        unread_count = db.query(NotificationDB).filter(
+            NotificationDB.username == current_user.username,
+            NotificationDB.is_read == False
+        ).count()
+        
+        logger.info(f"User {current_user.username} retrieved notifications")
+        return {
+            'notifications': notifications_data,
+            'unread_count': unread_count
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving notifications: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve notifications")
+
+@app.put("/notifications/{notification_id}/mark-as-read")
+async def mark_notification_as_read(notification_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Đánh dấu thông báo là đã đọc"""
+    try:
+        notification = db.query(NotificationDB).filter(
+            NotificationDB.id == notification_id,
+            NotificationDB.username == current_user.username
+        ).first()
+        
+        if not notification:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        
+        notification.is_read = True
+        db.commit()
+        
+        logger.info(f"Notification {notification_id} marked as read by {current_user.username}")
+        return {'status': 'success', 'message': 'Notification marked as read'}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error marking notification as read: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to mark notification as read")
+
+@app.put("/notifications/mark-all-as-read")
+async def mark_all_notifications_as_read(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Đánh dấu tất cả thông báo là đã đọc"""
+    try:
+        db.query(NotificationDB).filter(
+            NotificationDB.username == current_user.username,
+            NotificationDB.is_read == False
+        ).update({NotificationDB.is_read: True})
+        db.commit()
+        
+        logger.info(f"All notifications marked as read for {current_user.username}")
+        return {'status': 'success', 'message': 'All notifications marked as read'}
+    except Exception as e:
+        logger.error(f"Error marking all notifications as read: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to mark notifications as read")
 
 @app.get("/health")
 def health():

@@ -285,6 +285,14 @@ function updateUserInfo() {
             }
         }
         
+        // Update creator column visibility on loan management page
+        updateCreatorColumnVisibility();
+        
+        // Load notifications if on loan management page
+        if (document.getElementById('loanContractTableBody')) {
+            loadNotifications();
+        }
+        
         setupLogoutListener();  // Gắn logout listener sau khi cập nhật user info
     })
     .catch(() => {
@@ -1540,6 +1548,8 @@ async function loadLoansFromDatabase() {
             }
             
             populateLoanTable();
+            // Show/hide creator column based on user role
+            updateCreatorColumnVisibility();
         } else {
             console.warn('Failed to load loans from database, showing empty list');
             sampleLoanContracts = [];
@@ -1561,10 +1571,13 @@ function populateLoanTable(loans = filteredLoans) {
     const tableBody = document.getElementById('loanContractTableBody');
     if (!tableBody) return;
     
+    const isAdmin = localStorage.getItem('user_role') === 'admin';
+    const colspanCount = isAdmin ? 9 : 8;
+    
     tableBody.innerHTML = '';
 
     if (loans.length === 0) {
-        tableBody.innerHTML = '<tr class="text-center text-gray-400 border-b"><td colspan="8" class="py-12">Không có dữ liệu phù hợp</td></tr>';
+        tableBody.innerHTML = `<tr class="text-center text-gray-400 border-b"><td colspan="${colspanCount}" class="py-12">Không có dữ liệu phù hợp</td></tr>`;
         updateLoanStats([]);
         return;
     }
@@ -1573,27 +1586,51 @@ function populateLoanTable(loans = filteredLoans) {
         const statusColor = getStatusColor(loan.status);
         const row = document.createElement('tr');
         row.className = 'hover:bg-slate-50 transition border-b border-gray-200';
-        row.innerHTML = `
+        
+        // Build row HTML conditionally based on admin role
+        let rowHTML = `
             <td class="px-6 py-4 text-sm text-gray-500 text-center">${index + 1}</td>
             <td class="px-6 py-4 text-sm font-bold text-gray-800">${loan.contractNumber}</td>
             <td class="px-6 py-4 text-sm text-gray-700">${loan.customerName}</td>
-            <td class="px-6 py-4 text-sm text-gray-600 text-right">${Number(loan.loanAmount).toLocaleString('vi-VN')} VNĐ</td>
+            <td class="px-6 py-4 text-sm text-gray-600 text-right">${Number(loan.loanAmount).toLocaleString('vi-VN')} </td>
             <td class="px-6 py-4 text-sm text-center text-gray-600">${loan.interestRate}%</td>
-            <td class="px-6 py-4 text-sm text-gray-600">${new Date(loan.createdDate).toLocaleDateString('vi-VN')}</td>
+            <td class="px-6 py-4 text-sm text-gray-600">${new Date(loan.createdDate).toLocaleDateString('vi-VN')}</td>`;
+        
+        // Add creator column only for admin
+        if (isAdmin) {
+            rowHTML += `<td class="px-6 py-4 text-sm text-gray-700">${loan.createdBy || 'N/A'}</td>`;
+        }
+        
+        rowHTML += `
             <td class="px-6 py-4 text-sm text-center">
-                <span class="${statusColor.bg} ${statusColor.text} px-3 py-1 rounded-full text-xs font-semibold">
+                <span class="${statusColor.bg} ${statusColor.text} px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap inline-block">
                     ${getStatusVietnamese(loan.status)}
                 </span>
             </td>
             <td class="px-6 py-4 text-sm text-center flex gap-2 justify-center">
                 <button onclick="editLoanContract('${loan.contractNumber}')" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-600 px-3 py-1 rounded transition text-xs font-semibold">Sửa</button>
                 <button onclick="deleteLoanContract('${loan.contractNumber}')" class="bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1 rounded transition text-xs font-semibold">Xóa</button>
-            </td>
-        `;
+            </td>`;
+        
+        row.innerHTML = rowHTML;
         tableBody.appendChild(row);
     });
 
     updateLoanStats(loans);
+}
+
+// Function to update creator column visibility
+function updateCreatorColumnVisibility() {
+    const createdByHeader = document.getElementById('createdByHeader');
+    if (!createdByHeader) return;
+    
+    const isAdmin = localStorage.getItem('user_role') === 'admin';
+    
+    if (isAdmin) {
+        createdByHeader.classList.remove('hidden');
+    } else {
+        createdByHeader.classList.add('hidden');
+    }
 }
 
 function getStatusColor(status) {
@@ -1611,7 +1648,7 @@ function getStatusVietnamese(status) {
         'active': '✓ Đang hoạt động',
         'pending': '⏱ Chờ xử lý',
         'paid': '✓ Đã thanh toán',
-        'default': '✕ Mặc định'
+        'default': '✕ Vỡ nợ'
     };
     return statusMap[status] || status;
 }
@@ -1682,7 +1719,63 @@ function editLoanContract(contractNumber) {
         document.getElementById('loanPhone').value = currentEditingContract.phone || '';
         document.getElementById('loanDescription').value = currentEditingContract.description || '';
         document.getElementById('loanContractNumber').disabled = true;
+        
+        // Show owner field for admin
+        const isAdmin = localStorage.getItem('user_role') === 'admin';
+        const ownerDiv = document.getElementById('loanOwnerDiv');
+        if (isAdmin && ownerDiv) {
+            ownerDiv.classList.remove('hidden');
+            // Load users for owner dropdown
+            loadUsersForLoanModal();
+            // Set current owner
+            const ownerSelect = document.getElementById('loanOwner');
+            if (ownerSelect) {
+                ownerSelect.value = currentEditingContract.username || '';
+            }
+        } else if (ownerDiv) {
+            ownerDiv.classList.add('hidden');
+        }
+        
         document.getElementById('loanModal').classList.remove('hidden');
+    }
+}
+
+// Load users for owner dropdown
+async function loadUsersForLoanModal() {
+    try {
+        const response = await fetch(`${LOAN_API_ENDPOINT}/admin/users?per_page=100`, {
+            method: 'GET',
+            headers: getLoanAuthHeaders()
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const users = data.users || [];
+            populateOwnerSelect(users);
+        }
+    } catch (error) {
+        console.error('Error loading users:', error);
+    }
+}
+
+// Populate owner select dropdown
+function populateOwnerSelect(users) {
+    const select = document.getElementById('loanOwner');
+    if (!select) return;
+    
+    const currentValue = select.value;
+    select.innerHTML = '';
+    
+    users.forEach(user => {
+        const option = document.createElement('option');
+        option.value = user.username;
+        option.textContent = `${user.username} (${user.full_name || user.email})`;
+        select.appendChild(option);
+    });
+    
+    // Restore previous selection
+    if (currentValue) {
+        select.value = currentValue;
     }
 }
 
@@ -1741,6 +1834,7 @@ function openAddLoanModal() {
 function closeLoanModal() {
     document.getElementById('loanModal').classList.add('hidden');
     document.getElementById('loanModalError').classList.add('hidden');
+    document.getElementById('loanOwnerDiv').classList.add('hidden');
     currentEditingContract = null;
 }
 
@@ -1846,10 +1940,40 @@ async function updateLoanInDatabase(contractNumber, contractData) {
         });
 
         if (response.ok) {
+            const updatedLoan = await response.json();
             const index = sampleLoanContracts.findIndex(l => l.contractNumber === contractNumber);
             if (index > -1) {
-                sampleLoanContracts[index] = await response.json();
+                sampleLoanContracts[index] = updatedLoan;
             }
+            
+            // If admin changed owner, update it separately
+            const isAdmin = localStorage.getItem('user_role') === 'admin';
+            const ownerSelect = document.getElementById('loanOwner');
+            if (isAdmin && ownerSelect && ownerSelect.value) {
+                const newOwner = ownerSelect.value;
+                const currentOwner = currentEditingContract.username;
+                
+                if (newOwner !== currentOwner) {
+                    // Call separate API to update owner
+                    const ownerResponse = await fetch(
+                        `${LOAN_API_ENDPOINT}/loans/${contractNumber}/owner`,
+                        {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                ...getLoanAuthHeaders()
+                            },
+                            body: JSON.stringify({ username: newOwner })
+                        }
+                    );
+                    
+                    if (ownerResponse.ok) {
+                        const ownerResult = await ownerResponse.json();
+                        sampleLoanContracts[index].username = ownerResult.username;
+                    }
+                }
+            }
+            
             filteredLoans = [...sampleLoanContracts];
             populateLoanTable();
             closeLoanModal();
@@ -1878,20 +2002,31 @@ function exportLoanContracts() {
         return;
     }
 
+    const isAdmin = localStorage.getItem('user_role') === 'admin';
+
     // Prepare data for Excel
-    const exportData = filteredLoans.map((loan, index) => ({
-        'STT': index + 1,
-        'Số HĐ': loan.contractNumber,
-        'Tên Khách Hàng': loan.customerName,
-        'Số Tiền (VNĐ)': loan.loanAmount,
-        'Lãi Suất (%)': loan.interestRate,
-        'Thời Hạn (tháng)': loan.loanDuration,
-        'Ngày Tạo': new Date(loan.createdDate).toLocaleDateString('vi-VN'),
-        'Trạng Thái': getStatusVietnamese(loan.status),
-        'Email': loan.email || '',
-        'Điện Thoại': loan.phone || '',
-        'Ghi Chú': loan.description || ''
-    }));
+    const exportData = filteredLoans.map((loan, index) => {
+        const baseData = {
+            'STT': index + 1,
+            'Số HĐ': loan.contractNumber,
+            'Tên Khách Hàng': loan.customerName,
+            'Số Tiền (USD)': loan.loanAmount,
+            'Lãi Suất (%)': loan.interestRate,
+            'Thời Hạn (tháng)': loan.loanDuration,
+            'Ngày Tạo': new Date(loan.createdDate).toLocaleDateString('vi-VN'),
+            'Trạng Thái': getStatusVietnamese(loan.status),
+            'Email': loan.email || '',
+            'Điện Thoại': loan.phone || '',
+            'Ghi Chú': loan.description || ''
+        };
+        
+        // Add creator column for admin
+        if (isAdmin) {
+            baseData['Người Tạo'] = loan.createdBy || 'N/A';
+        }
+        
+        return baseData;
+    });
 
     // Create Excel file
     const workbook = XLSX.utils.book_new();
@@ -1899,19 +2034,36 @@ function exportLoanContracts() {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Hợp Đồng');
 
     // Set column widths
-    worksheet['!cols'] = [
-        { wch: 5 },
-        { wch: 12 },
-        { wch: 20 },
-        { wch: 18 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 20 },
-        { wch: 15 },
-        { wch: 25 }
-    ];
+    const columnWidths = isAdmin ? 
+        [
+            { wch: 5 },
+            { wch: 12 },
+            { wch: 20 },
+            { wch: 18 },
+            { wch: 12 },
+            { wch: 12 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 20 },
+            { wch: 15 },
+            { wch: 25 }
+        ] :
+        [
+            { wch: 5 },
+            { wch: 12 },
+            { wch: 20 },
+            { wch: 18 },
+            { wch: 12 },
+            { wch: 12 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 20 },
+            { wch: 15 },
+            { wch: 25 }
+        ];
+    
+    worksheet['!cols'] = columnWidths;
 
     // Download file
     const fileName = `hop_dong_vay_${new Date().toISOString().split('T')[0]}.xlsx`;
@@ -1937,5 +2089,128 @@ function initializeLoanManagement() {
     loadLoansFromDatabase();
     // Setup event listeners
     setupLoanContractListeners();
+    // Load notifications
+    loadNotifications();
 }
+
+// =====================================================================
+// NOTIFICATION MANAGEMENT
+// =====================================================================
+
+function toggleNotificationPanel() {
+    const panel = document.getElementById('notificationPanel');
+    if (panel) {
+        panel.classList.toggle('hidden');
+    }
+}
+
+async function loadNotifications() {
+    try {
+        const response = await fetch(`${LOAN_API_ENDPOINT}/notifications`, {
+            method: 'GET',
+            headers: getLoanAuthHeaders()
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            displayNotifications(data.notifications, data.unread_count);
+        } else {
+            console.warn('Failed to load notifications');
+        }
+    } catch (error) {
+        console.error('Error loading notifications:', error);
+    }
+}
+
+function displayNotifications(notifications, unreadCount) {
+    const badge = document.getElementById('notificationBadge');
+    const list = document.getElementById('notificationList');
+    
+    // Update badge
+    if (badge) {
+        if (unreadCount > 0) {
+            badge.textContent = unreadCount;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+    
+    // Display notifications
+    if (!list) return;
+    
+    if (notifications.length === 0) {
+        list.innerHTML = '<div class="p-6 text-center text-gray-400 text-sm">Không có thông báo</div>';
+        return;
+    }
+    
+    list.innerHTML = notifications.map(notif => {
+        const changesHtml = Object.entries(notif.changes)
+            .map(([key, value]) => `
+                <div class="text-xs text-gray-600 mb-1">
+                    <span class="font-semibold">${getFieldLabel(key)}:</span>
+                    <span class="line-through text-red-600">${value.old}</span> 
+                    <span class="text-green-600">${value.new}</span>
+                </div>
+            `).join('');
+        
+        const createdTime = new Date(notif.created_at).toLocaleString('vi-VN');
+        const statusClass = notif.is_read ? 'bg-gray-50' : 'bg-blue-50 border-l-4 border-blue-500';
+        
+        return `
+            <div class="${statusClass} p-4 hover:bg-gray-100 transition cursor-pointer" onclick="markNotificationAsRead(${notif.id})">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">Hợp đồng ${notif.contract_number}</p>
+                        <p class="text-xs text-gray-600">Sửa bởi: <span class="font-medium">${notif.edited_by}</span></p>
+                    </div>
+                    ${!notif.is_read ? '<span class="bg-blue-500 w-2 h-2 rounded-full"></span>' : ''}
+                </div>
+                <div class="mb-2">
+                    ${changesHtml}
+                </div>
+                <p class="text-xs text-gray-500">${createdTime}</p>
+            </div>
+        `;
+    }).join('');
+}
+
+function getFieldLabel(fieldName) {
+    const labels = {
+        'customerName': 'Tên khách hàng',
+        'loanAmount': 'Số tiền vay',
+        'interestRate': 'Lãi suất',
+        'loanDuration': 'Thời hạn vay',
+        'createdDate': 'Ngày tạo',
+        'status': 'Trạng thái',
+        'email': 'Email',
+        'phone': 'Điện thoại',
+        'description': 'Ghi chú'
+    };
+    return labels[fieldName] || fieldName;
+}
+
+async function markNotificationAsRead(notificationId) {
+    try {
+        const response = await fetch(`${LOAN_API_ENDPOINT}/notifications/${notificationId}/mark-as-read`, {
+            method: 'PUT',
+            headers: getLoanAuthHeaders()
+        });
+
+        if (response.ok) {
+            // Reload notifications
+            loadNotifications();
+        }
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+    }
+}
+
+// Auto-load notifications every 30 seconds
+setInterval(() => {
+    if (isAuthenticated() && document.getElementById('loanContractTableBody')) {
+        loadNotifications();
+    }
+}, 30000);
+
 
