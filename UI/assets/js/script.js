@@ -1703,40 +1703,61 @@ function searchAndFilterLoans() {
 }
 
 function editLoanContract(contractNumber) {
-    currentEditingContract = sampleLoanContracts.find(l => l.contractNumber === contractNumber);
-    if (currentEditingContract) {
-        const titleEl = document.getElementById('loanModalTitle');
-        if (titleEl) titleEl.textContent = `Chỉnh sửa Hợp đồng ${contractNumber}`;
-        
-        document.getElementById('loanContractNumber').value = currentEditingContract.contractNumber;
-        document.getElementById('loanCustomerName').value = currentEditingContract.customerName;
-        document.getElementById('loanAmount').value = currentEditingContract.loanAmount;
-        document.getElementById('loanInterestRate').value = currentEditingContract.interestRate;
-        document.getElementById('loanDuration').value = currentEditingContract.loanDuration;
-        document.getElementById('loanCreatedDate').value = currentEditingContract.createdDate;
-        document.getElementById('loanStatus').value = currentEditingContract.status;
-        document.getElementById('loanEmail').value = currentEditingContract.email || '';
-        document.getElementById('loanPhone').value = currentEditingContract.phone || '';
-        document.getElementById('loanDescription').value = currentEditingContract.description || '';
-        document.getElementById('loanContractNumber').disabled = true;
-        
-        // Show owner field for admin
-        const isAdmin = localStorage.getItem('user_role') === 'admin';
-        const ownerDiv = document.getElementById('loanOwnerDiv');
-        if (isAdmin && ownerDiv) {
-            ownerDiv.classList.remove('hidden');
-            // Load users for owner dropdown
-            loadUsersForLoanModal();
-            // Set current owner
-            const ownerSelect = document.getElementById('loanOwner');
-            if (ownerSelect) {
-                ownerSelect.value = currentEditingContract.username || '';
+    // Fetch the latest contract data from API instead of using cached data
+    loadContractForEditing(contractNumber);
+}
+
+// Load contract data from API for editing (ensures fresh data)
+async function loadContractForEditing(contractNumber) {
+    try {
+        const response = await fetch(`${LOAN_API_ENDPOINT}/loans/${contractNumber}`, {
+            method: 'GET',
+            headers: getLoanAuthHeaders()
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            currentEditingContract = data;
+            
+            const titleEl = document.getElementById('loanModalTitle');
+            if (titleEl) titleEl.textContent = `Chỉnh sửa Hợp đồng ${contractNumber}`;
+            
+            document.getElementById('loanContractNumber').value = data.contractNumber;
+            document.getElementById('loanCustomerName').value = data.customerName;
+            document.getElementById('loanAmount').value = data.loanAmount;
+            document.getElementById('loanInterestRate').value = data.interestRate;
+            document.getElementById('loanDuration').value = data.loanDuration;
+            document.getElementById('loanCreatedDate').value = data.createdDate;
+            document.getElementById('loanStatus').value = data.status;
+            document.getElementById('loanEmail').value = data.email || '';
+            document.getElementById('loanPhone').value = data.phone || '';
+            document.getElementById('loanDescription').value = data.description || '';
+            document.getElementById('loanContractNumber').disabled = true;
+            
+            // Show owner field for admin
+            const isAdmin = localStorage.getItem('user_role') === 'admin';
+            const ownerDiv = document.getElementById('loanOwnerDiv');
+            if (isAdmin && ownerDiv) {
+                ownerDiv.classList.remove('hidden');
+                // Load users for owner dropdown FIRST, then set value
+                await loadUsersForLoanModal();
+                // Set current owner AFTER loading users
+                const ownerSelect = document.getElementById('loanOwner');
+                if (ownerSelect) {
+                    ownerSelect.value = data.username || '';
+                }
+            } else if (ownerDiv) {
+                ownerDiv.classList.add('hidden');
             }
-        } else if (ownerDiv) {
-            ownerDiv.classList.add('hidden');
+            
+            document.getElementById('loanModal').classList.remove('hidden');
+        } else {
+            showLoanError('Không thể tải chi tiết hợp đồng. Vui lòng thử lại.');
+            console.error('Failed to load contract:', response.status);
         }
-        
-        document.getElementById('loanModal').classList.remove('hidden');
+    } catch (error) {
+        console.error('Error loading contract:', error);
+        showLoanError('Không thể kết nối với database');
     }
 }
 
@@ -1959,17 +1980,19 @@ async function updateLoanInDatabase(contractNumber, contractData) {
                         `${LOAN_API_ENDPOINT}/loans/${contractNumber}/owner`,
                         {
                             method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                ...getLoanAuthHeaders()
-                            },
+                            headers: getLoanAuthHeaders(),
                             body: JSON.stringify({ username: newOwner })
                         }
                     );
                     
                     if (ownerResponse.ok) {
                         const ownerResult = await ownerResponse.json();
-                        sampleLoanContracts[index].username = ownerResult.username;
+                        if (index > -1) {
+                            sampleLoanContracts[index].username = ownerResult.username;
+                        }
+                    } else {
+                        const ownerError = await ownerResponse.json();
+                        console.warn('Failed to update owner:', ownerError);
                     }
                 }
             }
@@ -1978,6 +2001,9 @@ async function updateLoanInDatabase(contractNumber, contractData) {
             populateLoanTable();
             closeLoanModal();
             alert('✓ Cập nhật hợp đồng thành công!');
+            
+            // Reload fresh data after a short delay to ensure DB is updated
+            setTimeout(() => loadLoansFromDatabase(), 500);
         } else {
             const error = await response.json();
             showLoanError(error.message || 'Lỗi khi cập nhật hợp đồng');
@@ -2022,7 +2048,7 @@ function exportLoanContracts() {
         
         // Add creator column for admin
         if (isAdmin) {
-            baseData['Người Tạo'] = loan.createdBy || 'N/A';
+            baseData['Người Tạo'] = loan.username || 'N/A';
         }
         
         return baseData;
