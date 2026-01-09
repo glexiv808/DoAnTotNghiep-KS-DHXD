@@ -14,8 +14,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ML-app.py .
 
 COPY jupiter_notebook/model_ml.joblib /app/
-COPY jupiter_notebook/model_random_forest/app/
-COPY jupiter_notebook/model_xgboost /app/
 
 # Copy model_ml.joblib file vào Container
 
