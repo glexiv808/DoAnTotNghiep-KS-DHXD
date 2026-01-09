@@ -1,8 +1,8 @@
 // =====================================================================
 // USER MANAGEMENT SCRIPT
 // =====================================================================
-
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = 'http://34.87.54.108.nip.io';
+// const API_BASE_URL = 'http://127.0.0.1:8000';
 let currentPage = 1;
 let currentSearch = '';
 let currentUserId = null;
