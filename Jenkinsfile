@@ -41,7 +41,7 @@ pipeline {
         stage('Testing') {
             agent {
                 docker {
-                    image 'python:3.8-slim'
+                    image 'python:3.9-slim'
                     args '-v $PWD:/workspace -w /workspace'
                 }
             }
