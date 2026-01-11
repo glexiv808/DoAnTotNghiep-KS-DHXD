@@ -1,4 +1,4 @@
-FROM python:3.8-slim
+FROM python:3.9-slim
 
 # Set working directory
 WORKDIR /app
@@ -11,10 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 
-COPY ML-app.py .
+COPY app.py .
 
 COPY jupiter_notebook/model_ml.joblib /app/
-
 # Copy model_ml.joblib file vào Container
 
 # Expose port
