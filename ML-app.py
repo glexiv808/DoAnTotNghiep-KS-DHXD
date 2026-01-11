@@ -3,7 +3,6 @@ import logging
 import joblib
 import numpy as np
 import json
-import os
 from typing import List, Optional
 from functools import wraps
 from datetime import datetime, timedelta
@@ -36,12 +35,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ==================== CẤU HÌNH ====================
-SECRET_KEY = os.getenv("SECRET_KEY", "matkhausieudaihahahahahahahahahahahahahahahahahahahahahahaha")
+SECRET_KEY = "matkhausieudaihahahahahahahahahahahahahahahahahahahahahahaha"  # Thay đổi trong production
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Database URL - đọc từ environment variable hoặc sử dụng SQLite mặc định
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ml_service.db")
+# Database URL - có thể thay đổi sang PostgreSQL
+DATABASE_URL = "sqlite:///./ml_service.db"  # Hoặc: "postgresql://user:pass@localhost/dbname"
 
 # ==================== DATABASE SETUP ====================
 Base = declarative_base()

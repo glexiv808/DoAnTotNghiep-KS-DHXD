@@ -30,3 +30,5 @@ gcloud auth print-access-token
 kubectl apply -f ingress.yaml
 //delete
 kubectl delete ingress nguyen-ingress -n model-serving
+
+uvicorn ML-app:app --reload //run api local
