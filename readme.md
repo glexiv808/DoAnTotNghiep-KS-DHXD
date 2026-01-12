@@ -40,3 +40,25 @@ uvicorn ML-app:app --reload //run api local
 
 3: kubectl get pods -n model-serving -o wide
 //end khoi dong
+
+
+//Monitor
+model_request_total: dạng counter, đếm số request được gửi tới Model, cả các request bị lỗi
+ml_prediction_duration_seconds: dạng historgram, đo thời gian thực hiện request
+ml_errors_total: dạng counter, đếm số request bị lỗi gửi tới Model
+
+rate(model_request_total[6m]) * 6 *60: chúng ta sẽ nhận được số request trung bình nhận được ( từ 1 giây nhận được bao nhiêu Request rồi nhân lên 6 phút ) ở mỗi Pod trong 6 phút gần nhất
+ml_prediction_duration_seconds_sum: ta sẽ được tổng thời gian xử lý các request, kể cả các request bị lỗi, từ lúc hoạt động tới hiện tại của mỗi Pod.
+increase(ml_prediction_duration_seconds_sum[5m]): sẽ nhận được tổng thời gian xử lý tất cả các request trong 5 phút gần nhất của mỗi Pod.
+ml_prediction_duration_seconds_count sẽ nhận được tổng số request nhận được ở mỗi Pod từ lúc khởi động tới hiện tại.
+
+Để tạo 1 Dashboard nhỏ thể hiện mức độ Memory Usage (tiêu tốn RAM) của các Pod
+(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024 
+với node_memory_MemTotal_bytes là tổng RAM của node (tính bằng bytes) 4112039936, 
+node_memory_MemAvailable_bytes là RAM còn trống có thể sử dụng ngay (bytes) 2994651136, 
+trừ đi cho nhau chúng ta ra được số RAM đang được sử dụng của Pod đó
+
+
+kubectl port-forward svc/prometheus-grafana -n monitoring  3000:80
+kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:909
+

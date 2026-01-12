@@ -6,6 +6,7 @@ from typing import List
 from functools import wraps
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
+from fastapi.middleware.cors import CORSMiddleware
 
 # Import OpenTelemetryy
 from opentelemetry import trace
@@ -98,6 +99,15 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="ML Prediction Service", 
               version="0.1.0",
               lifespan=lifespan)
+
+# Cấu hình CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Cho phép tất cả origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Cho phép tất cả HTTP methods
+    allow_headers=["*"],  # Cho phép tất cả headers
+)
 
 # 2. Tạo decorator trace-span để tự động trace cho các function
 def trace_span(span_name):

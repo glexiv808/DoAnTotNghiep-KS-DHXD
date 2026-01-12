@@ -1,8 +1,8 @@
 // =====================================================================
 // 0. API CONFIGURATION & TOKEN MANAGEMENT
 // =====================================================================
-const API_BASE_URL = 'http://34.87.54.108.nip.io';
-// const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_PREDICT_URL = 'http://34.87.54.108.nip.io/predict';
+const API_BASE_URL = 'http://127.0.0.1:8000';
 const API_URL = `${API_BASE_URL}/predict`;
 const API_REGISTER = `${API_BASE_URL}/register`;
 const API_LOGIN = `${API_BASE_URL}/login`;
@@ -392,7 +392,7 @@ if (singleForm) {
         console.log("Vector gửi đi:", bodyToSend);
 
         try {
-            const response = await fetch(API_URL, {
+            const response = await fetch(API_PREDICT_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -800,7 +800,7 @@ async function processBatch() {
         let displayStatus = -1;
 
         try {
-            const res = await fetch(API_URL, {
+            const res = await fetch(API_PREDICT_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
