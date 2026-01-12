@@ -66,7 +66,7 @@ pipeline {
                 script {
                     echo 'Building Docker image..'
                     try {
-                        dockerImage = docker.build registry + ":$BUILD_NUMBER"
+                        dockerImage = docker.build(registry + ":$BUILD_NUMBER", "--no-cache") //01/12/2026
                         echo 'Docker image built successfully!!'
                     } catch (Exception e) {
                         echo "Docker build failed: ${e.getMessage()}"

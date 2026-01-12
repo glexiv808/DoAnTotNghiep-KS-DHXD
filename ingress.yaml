@@ -1,63 +1,63 @@
-# apiVersion: networking.k8s.io/v1
-# kind: Ingress
-# metadata:
-#   name: nguyen-ingress
-#   namespace: model-serving
-
-# spec:
-#   ingressClassName: nginx
-#   rules:
-#   - host: 34.87.54.108.nip.io
-#     http:
-#       paths:
-#       - path: /  
-#         pathType: Prefix
-#         backend:
-#           service:
-#             name: loan-prediction-service
-#             port:
-#               number: 80
-
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: nguyen-ingress
   namespace: model-serving
-  annotations:
-    kubernetes.io/ingress.class: nginx
-
-    # Bật CORS
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-
-    # Chỉ định domain cho phép (KHÔNG ĐƯỢC để *)
-    # nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
-
-    # Nếu bạn muốn nhiều domain → dùng regex
-    # nginx.ingress.kubernetes.io/cors-allow-origin: "https://.*"
-
-    # Cho phép credentials
-    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
-
-    # Các method được phép
-    nginx.ingress.kubernetes.io/cors-allow-methods: "GET,PUT,POST,OPTIONS"
-
-    # Các header được phép
-    nginx.ingress.kubernetes.io/cors-allow-headers: >
-      DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,
-      If-Modified-Since,Cache-Control,Content-Type,Authorization
 
 spec:
   ingressClassName: nginx
   rules:
-    - host: 34.87.54.108.nip.io
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: loan-prediction-service
-                port:
-                  number: 80
+  - host: 34.87.54.108.nip.io
+    http:
+      paths:
+      - path: /  
+        pathType: Prefix
+        backend:
+          service:
+            name: loan-prediction-service
+            port:
+              number: 80
+
+
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: nguyen-ingress
+#   namespace: model-serving
+#   annotations:
+#     kubernetes.io/ingress.class: nginx
+
+#     # Bật CORS
+#     nginx.ingress.kubernetes.io/enable-cors: "true"
+
+#     # Chỉ định domain cho phép (KHÔNG ĐƯỢC để *)
+#     # nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000"
+#     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+
+#     # Nếu bạn muốn nhiều domain → dùng regex
+#     # nginx.ingress.kubernetes.io/cors-allow-origin: "https://.*"
+
+#     # Cho phép credentials
+#     nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+
+#     # Các method được phép
+#     nginx.ingress.kubernetes.io/cors-allow-methods: "GET,PUT,POST,OPTIONS"
+
+#     # Các header được phép
+#     nginx.ingress.kubernetes.io/cors-allow-headers: >
+#       DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,
+#       If-Modified-Since,Cache-Control,Content-Type,Authorization
+
+# spec:
+#   ingressClassName: nginx
+#   rules:
+#     - host: 34.87.54.108.nip.io
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: loan-prediction-service
+#                 port:
+#                   number: 80
