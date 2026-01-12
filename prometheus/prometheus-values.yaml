@@ -117,7 +117,7 @@ prometheusOperator:
 additionalScrapeConfigs:
   - job_name: 'ml-prediction-service'
     static_configs:
-      - targets: ['loan-prediction-service-ubuntu:5000']  # Thay thế bằng tên service của bạn
+      - targets: ['loan-prediction-service:5000']  # Thay thế bằng tên service của bạn
     metrics_path: '/metrics'
     scrape_interval: 15s
     scrape_timeout: 10s
