@@ -22,7 +22,7 @@ gcloud container clusters describe gke-ml-ops-02 --zone asia-southeast1-a --form
 gcloud container clusters describe <Tên Cluster> --zone=<Tên vùng> --format="value(masterAuth.clusterCaCertificate)": get kube server certificate
 
 // Get Access Token đại diện cho Service Account trong GCP
-gcloud auth activate-service-account jenkin-serviceaccount@deploy-model-loan-prediction.iam.gserviceaccount.com --key-file=C:\Users\nguye\Downloads\deploy-model-loan-prediction-831068f9d106.json
+gcloud auth activate-service-account jenkins-serviceaccount@loan-prediction-ubuntu.iam.gserviceaccount.com --key-file=/home/nguyennd808/Downloads/loan-prediction-ubuntu-89aa573db8b8.json
 gcloud auth print-access-token
 // end
 
@@ -32,3 +32,11 @@ kubectl apply -f ingress.yaml
 kubectl delete ingress nguyen-ingress -n model-serving
 
 uvicorn ML-app:app --reload //run api local
+
+//khoi dong lai pod
+1: kubectl rollout restart deployment/loan-prediction-deployment -n model-serving
+
+2: kubectl rollout status deployment/loan-prediction-deployment -n model-serving
+
+3: kubectl get pods -n model-serving -o wide
+//end khoi dong
