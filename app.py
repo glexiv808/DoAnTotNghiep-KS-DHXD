@@ -100,13 +100,15 @@ app = FastAPI(title="ML Prediction Service",
               version="0.1.0",
               lifespan=lifespan)
 
-# Cấu hình CORS
+# Cấu hình CORS - phải thêm trước các endpoint
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Cho phép tất cả origins
-    allow_credentials=True,
+    allow_credentials=False,  # Thay đổi thành False khi allow_origins=["*"]
     allow_methods=["*"],  # Cho phép tất cả HTTP methods
     allow_headers=["*"],  # Cho phép tất cả headers
+    expose_headers=["*"],  # Expose tất cả headers
+    max_age=600,  # Cache preflight response trong 10 phút
 )
 
 # 2. Tạo decorator trace-span để tự động trace cho các function
