@@ -12,7 +12,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 import jwt
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, inspect, text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, inspect, text, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -67,7 +67,7 @@ class TokenBlacklist(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     token = Column(String, unique=True, index=True, nullable=False)
-    username = Column(String, index=True, nullable=False)
+    username = Column(String, ForeignKey("users.username"), index=True, nullable=False)
     blacklisted_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
 
@@ -76,7 +76,7 @@ class ProcessingSession(Base):
     __tablename__ = "processing_sessions"
     
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, index=True, nullable=False)
+    username = Column(String, ForeignKey("users.username"), index=True, nullable=False)
     session_id = Column(String, unique=True, index=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -88,8 +88,8 @@ class ProcessingResult(Base):
     __tablename__ = "processing_results"
     
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(String, index=True, nullable=False)
-    username = Column(String, index=True, nullable=False)
+    session_id = Column(String, ForeignKey("processing_sessions.session_id"), index=True, nullable=False)
+    username = Column(String, ForeignKey("users.username"), index=True, nullable=False)
     row_number = Column(Integer, nullable=False)
     name = Column(String, nullable=False)
     income = Column(String, nullable=True)
@@ -104,7 +104,7 @@ class LoanContractDB(Base):
     __tablename__ = "loan_contracts"
     
     contractNumber = Column(String, primary_key=True, index=True, nullable=False)
-    username = Column(String, index=True, nullable=False)  # Chủ sở hữu/người quản lý hợp đồng
+    username = Column(String, ForeignKey("users.username"), index=True, nullable=False)  # Chủ sở hữu/người quản lý hợp đồng
     customerName = Column(String, nullable=False)
     loanAmount = Column(String, nullable=False)
     interestRate = Column(String, nullable=False)
@@ -122,9 +122,9 @@ class NotificationDB(Base):
     __tablename__ = "notifications"
     
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, index=True, nullable=False)  # Người nhận notification
-    contract_number = Column(String, index=True, nullable=False)  # Hợp đồng bị chỉnh sửa
-    edited_by = Column(String, nullable=False)  # Admin người chỉnh sửa
+    username = Column(String, ForeignKey("users.username"), index=True, nullable=False)  # Người nhận notification
+    contract_number = Column(String, ForeignKey("loan_contracts.contractNumber"), index=True, nullable=False)  # Hợp đồng bị chỉnh sửa
+    edited_by = Column(String, ForeignKey("users.username"), nullable=False)  # Admin người chỉnh sửa
     changes = Column(String, nullable=False)  # JSON string chứa chi tiết thay đổi
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
