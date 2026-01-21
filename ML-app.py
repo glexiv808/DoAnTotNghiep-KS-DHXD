@@ -123,7 +123,7 @@ class NotificationDB(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, ForeignKey("users.username"), index=True, nullable=False)  # Người nhận notification
-    contract_number = Column(String, ForeignKey("loan_contracts.contractNumber"), index=True, nullable=False)  # Hợp đồng bị chỉnh sửa
+    contractNumber = Column(String, ForeignKey("loan_contracts.contractNumber"), index=True, nullable=False)  # Hợp đồng bị chỉnh sửa
     edited_by = Column(String, ForeignKey("users.username"), nullable=False)  # Admin người chỉnh sửa
     changes = Column(String, nullable=False)  # JSON string chứa chi tiết thay đổi
     is_read = Column(Boolean, default=False)
@@ -1332,7 +1332,7 @@ async def update_loan(contractNumber: str, loan: LoanContract, current_user: Use
         if current_user.role == "admin" and changes and existing_loan.username != current_user.username:
             notification = NotificationDB(
                 username=existing_loan.username,  # Người phụ trách hợp đồng
-                contract_number=contractNumber,
+                contractNumber=contractNumber,
                 edited_by=current_user.username,  # Admin người chỉnh sửa
                 changes=json.dumps(changes),
                 is_read=False
@@ -1772,7 +1772,7 @@ async def get_notifications(current_user: User = Depends(get_current_user), db: 
             changes = json.loads(notif.changes)
             notifications_data.append({
                 'id': notif.id,
-                'contract_number': notif.contract_number,
+                'contractNumber': notif.contractNumber,
                 'edited_by': notif.edited_by,
                 'changes': changes,
                 'is_read': notif.is_read,
