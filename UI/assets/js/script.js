@@ -1837,7 +1837,15 @@ function openAddLoanModal() {
     const titleEl = document.getElementById('loanModalTitle');
     if (titleEl) titleEl.textContent = 'Thêm Hợp đồng Vay vốn';
     
-    document.getElementById('loanContractNumber').value = 'HĐ' + String(++contractCounter).padStart(3, '0');
+    // Get current username from the DOM
+    const currentUserEl = document.getElementById('currentUser');
+    const username = currentUserEl ? currentUserEl.textContent.trim() : 'HD';
+    
+    // Generate contract number with username prefix
+    const nextNum = String(++contractCounter).padStart(3, '0');
+    const contractNumber = username + 'HD' + nextNum;
+    
+    document.getElementById('loanContractNumber').value = contractNumber;
     document.getElementById('loanCustomerName').value = '';
     document.getElementById('loanAmount').value = '';
     document.getElementById('loanInterestRate').value = '';
