@@ -671,6 +671,16 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # Kiểm tra tài khoản có hoạt động không
+    if not user.is_active:
+        auth_counter.labels(operation="login", status="account_disabled").inc()
+        logger.warning(f"Login attempt with disabled account: {user.username}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     # Cập nhật last_login
     user.last_login = datetime.utcnow()
     db.commit()
