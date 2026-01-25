@@ -77,7 +77,16 @@ function setupLoginHandler() {
 
             if (!response.ok) {
                 const error = await response.json();
-                throw new Error(error.detail || 'Đăng nhập thất bại');
+                let errorMessage = error.detail || 'Đăng nhập thất bại';
+                
+                // Xử lý các loại lỗi khác nhau
+                if (response.status === 403) {
+                    errorMessage = 'Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.';
+                } else if (response.status === 401) {
+                    errorMessage = 'Tên đăng nhập hoặc mật khẩu không chính xác';
+                }
+                
+                throw new Error(errorMessage);
             }
 
             const data = await response.json();

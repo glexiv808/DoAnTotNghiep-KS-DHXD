@@ -1558,7 +1558,7 @@ async function loadLoansFromDatabase() {
         }
     } catch (error) {
         console.error('Error loading loans:', error);
-        alert('⚠️ Không thể kết nối với database. Vui lòng kiểm tra backend server.');
+        alert('Không thể kết nối với database. Vui lòng kiểm tra backend server.');
         sampleLoanContracts = [];
         filteredLoans = [];
         populateLoanTable();
@@ -1841,9 +1841,15 @@ function openAddLoanModal() {
     const currentUserEl = document.getElementById('currentUser');
     const username = currentUserEl ? currentUserEl.textContent.trim() : 'HD';
     
-    // Generate contract number with username prefix
-    const nextNum = String(++contractCounter).padStart(3, '0');
-    const contractNumber = username + 'HD' + nextNum;
+    // Generate contract number and ensure it's unique
+    let contractNumber;
+    let counter = contractCounter;
+    do {
+        const nextNum = String(++counter).padStart(3, '0');
+        contractNumber = username + 'HD' + nextNum;
+    } while (sampleLoanContracts.some(l => l.contractNumber === contractNumber));
+    
+    contractCounter = counter; // Update global counter
     
     document.getElementById('loanContractNumber').value = contractNumber;
     document.getElementById('loanCustomerName').value = '';
@@ -1905,9 +1911,11 @@ function saveLoanContract() {
     }
 
     // Check for duplicate contract number (when adding new)
-    if (!currentEditingContract && sampleLoanContracts.some(l => l.contractNumber === contractNumber)) {
-        showLoanError('Số hợp đồng này đã tồn tại!');
-        return;
+    if (!currentEditingContract) {
+        if (sampleLoanContracts.some(l => l.contractNumber === contractNumber)) {
+            showLoanError('Số hợp đồng này đã tồn tại trong hệ thống!');
+            return;
+        }
     }
 
     // Create or update contract
@@ -2179,7 +2187,7 @@ function displayNotifications(notifications, unreadCount) {
     }
     
     list.innerHTML = notifications.map(notif => {
-        const changesHtml = Object.entries(notif.changes)
+        const changesHtml = Object.entries(notif.changes || {})
             .map(([key, value]) => `
                 <div class="text-xs text-gray-600 mb-1">
                     <span class="font-semibold">${getFieldLabel(key)}:</span>
@@ -2191,12 +2199,16 @@ function displayNotifications(notifications, unreadCount) {
         const createdTime = new Date(notif.created_at).toLocaleString('vi-VN');
         const statusClass = notif.is_read ? 'bg-gray-50' : 'bg-blue-50 border-l-4 border-blue-500';
         
+        // Get contract number from various possible field names
+        const contractNum = notif.contract_number || notif.contractNumber || notif.loan_number || notif.number || 'N/A';
+        const editedBy = notif.edited_by || notif.created_by || 'Unknown';
+        
         return `
             <div class="${statusClass} p-4 hover:bg-gray-100 transition cursor-pointer" onclick="markNotificationAsRead(${notif.id})">
                 <div class="flex justify-between items-start mb-2">
                     <div>
-                        <p class="text-sm font-semibold text-gray-800">Hợp đồng ${notif.contract_number}</p>
-                        <p class="text-xs text-gray-600">Sửa bởi: <span class="font-medium">${notif.edited_by}</span></p>
+                        <p class="text-sm font-semibold text-gray-800">Hợp đồng ${contractNum}</p>
+                        <p class="text-xs text-gray-600">Sửa bởi: <span class="font-medium">${editedBy}</span></p>
                     </div>
                     ${!notif.is_read ? '<span class="bg-blue-500 w-2 h-2 rounded-full"></span>' : ''}
                 </div>

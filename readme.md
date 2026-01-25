@@ -60,5 +60,5 @@ trừ đi cho nhau chúng ta ra được số RAM đang được sử dụng c�
 
 
 kubectl port-forward svc/prometheus-grafana -n monitoring  3000:80
-kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:909
+kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
 
